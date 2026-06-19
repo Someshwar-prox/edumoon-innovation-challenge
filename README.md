@@ -147,8 +147,6 @@ start.bat
 
 ## Screenshots
 
-> Real screenshots coming soon. Below are ASCII previews of the actual UI to give you a feel for it.
-
 ### Static console (`http://127.0.0.1:5500/`)
 
 ```
