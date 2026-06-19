@@ -24,6 +24,11 @@ ai-service/data/qdrant/snapshots/
 ai-service/data/qdrant/storage/
 ai-service/.qdrant-initialized
 
+# Qdrant runtime state: alias DB + per-collection storage + WAL files.
+# Critical: without this rule the running Qdrant writes its storage into
+# ai-service/storage/ which gets committed and ships publicly.
+ai-service/storage/
+
 # Service runtime data (regenerated each session)
 ai-service/data/cache/
 ai-service/data/uploads/
