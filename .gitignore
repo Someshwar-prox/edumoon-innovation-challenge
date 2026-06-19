@@ -19,6 +19,11 @@ build/
 dist/
 *.egg-info/
 
+# Next.js
+web/.next/
+web/out/
+web/node_modules/
+
 # Qdrant runtime data (data/qdrant/bin stays — the binary)
 ai-service/data/qdrant/snapshots/
 ai-service/data/qdrant/storage/

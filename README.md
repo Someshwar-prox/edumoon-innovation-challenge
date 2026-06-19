@@ -331,29 +331,20 @@ edumoon-innovation-challenge/
 ├── install.sh / install.bat   ← one-shot setup
 ├── start.sh   / start.bat     ← one-command run
 ├── .gitignore
-├── ai-service/                ← the AI microservice
-│   ├── app/
-│   │   ├── main.py            ← FastAPI entrypoint
-│   │   ├── api/               ← router + request/response schemas
-│   │   ├── core/              ← config, embedding, qdrant, groq, kb_mirror, logging
-│   │   └── modules/
-│   │       ├── analyze_website/      ← BFS crawler + Groq JSON-mode structuring
-│   │       ├── document_processing/  ← PDF/DOCX/TXT + recursive chunker
-│   │       ├── chatbot/              ← RAG over kb_master with citations
-│   │       └── readiness_report/     ← curated question bank → AI score
-│   ├── docs/
-│   │   ├── ARCHITECTURE.md    ← module breakdown + Qdrant schema + lifecycle
-│   │   └── API_CONTRACTS.md   ← frozen request/response payloads
-│   ├── data/                  ← runtime state (models, qdrant binary, storage)
-│   ├── scripts/
-│   │   ├── init_qdrant.py     ← idempotent collection bootstrap
-│   │   └── download_models.py ← pulls BGE-small into data/models/
-│   ├── tests/                 ← pytest suite (69 tests)
-│   ├── requirements.txt
-│   └── .env / .env.example
-└── frontend/
-    └── index.html             ← static console (single file, no build)
+├── ai-service/                ← the AI microservice (FastAPI + Qdrant + BGE + Groq)
+├── frontend/                  ← (legacy) static HTML dev console
+└── web/                       ← Next.js 15 customer-facing site (App Router + Tailwind + Framer Motion)
+    ├── src/app/
+    │   ├── page.tsx           ← landing page (/)
+    │   ├── install/           ← /install
+    │   ├── console/           ← /console — drives all 4 endpoints
+    │   └── chat-widget-demo/  ← /chat-widget-demo — live demo + embed snippet
+    ├── src/components/        ← shared primitives + console sub-components
+    ├── public/aibridge-widget.js  ← drop-in widget for customer sites
+    └── out/                   ← `npm run build` static export
 ```
+
+The Next.js site (`web/`) talks to the AI service over CORS at `NEXT_PUBLIC_API_BASE` (default `http://127.0.0.1:8000`). The widget script (`public/aibridge-widget.js`) is framework-free vanilla JS — a customer adds `<script src="/aibridge-widget.js" data-business-id="UUID" defer></script>` and they get a working chat bubble.
 
 ---
 
