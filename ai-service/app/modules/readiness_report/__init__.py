@@ -1,0 +1,1 @@
+"""AI readiness report internals."""

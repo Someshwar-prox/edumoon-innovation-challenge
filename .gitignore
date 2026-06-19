@@ -1,0 +1,54 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtualenvs
+.venv/
+venv/
+env/
+
+# Test / build cache
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+build/
+dist/
+*.egg-info/
+
+# Qdrant runtime data (data/qdrant/bin stays — the binary)
+ai-service/data/qdrant/snapshots/
+ai-service/data/qdrant/storage/
+ai-service/.qdrant-initialized
+
+# Service runtime data (regenerated each session)
+ai-service/data/cache/
+ai-service/data/uploads/
+
+# Embedding model: pulled by scripts/download_models.py on first install.
+# Keeps the repo small; fresh clone takes ~30s to fetch.
+ai-service/data/models/
+
+# Env / secrets — never commit
+.env
+ai-service/.env
+**/.env.local
+
+# Logs
+*.out
+*.err
+nohup.out
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
+# Frontend
+frontend/frontend.out
+frontend/frontend.err

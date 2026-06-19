@@ -1,0 +1,1 @@
+"""Core utilities: configuration and shared clients (qdrant, embedding, groq)."""
