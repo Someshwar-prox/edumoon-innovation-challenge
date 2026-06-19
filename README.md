@@ -378,7 +378,6 @@ A few things that surprised me while building this:
 | Install + start scripts | ✅ POSIX + Windows, one command each |
 | Multi-tenant auth | ❌ out of scope (gateway's job) |
 | Webhook to gateway on report ready | ❌ out of scope (snapshots in `readiness_reports` collection) |
-| Real screenshot placeholders | ⏳ TODO — ASCII mockups above for now |
 
 ---
 
