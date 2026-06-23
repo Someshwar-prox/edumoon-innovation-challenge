@@ -52,7 +52,7 @@ class Settings(BaseSettings):
     groq_api_key: str = ""
     groq_api_keys: str = ""
     groq_model: str = "llama-3.1-70b-versatile"
-    groq_temperature: float = 0.2
+    groq_temperature: float = 0.1
     groq_max_tokens: int = 1024
     groq_timeout_seconds: int = 30
 
@@ -64,7 +64,41 @@ class Settings(BaseSettings):
     # Chatbot
     chat_top_k: int = 6
     chat_score_threshold: float = 0.30
-    chat_max_context_chars: int = 6000
+    chat_max_context_chars: int = 16000
+    # When the user has never crawled/uploaded anything for a business,
+    # the chatbot used to error out with "no indexed content". With this
+    # flag ON, the chatbot will kick off a one-shot BFS crawl of the
+    # business's website (if `company_url` was supplied) and seed the
+    # kb_master collection BEFORE running the live-web augmentation.
+    # Net effect: the chatbot always has *something* to work with, even
+    # for a brand-new business whose owner hasn't touched onboarding.
+    # Set CHAT_AUTO_CRAWL_ON_EMPTY_KB=false to disable (e.g. if Qdrant
+    # billing is tight and you don't want surprise upserts).
+    chat_auto_crawl_on_empty_kb: bool = True
+
+    # Supabase Storage (cardless durable upload storage).
+    # ai-service receives the storage path from the gateway in the multipart
+    # `metadata` field; it does NOT re-upload — the gateway already wrote the
+    # durable copy. This block just lets ai-service fetch the original bytes
+    # back when it needs to re-extract.
+    supabase_url: str = ""
+    supabase_service_role_key: str = ""
+    supabase_bucket: str = "cluster"
+
+    # Live-web augmentation. When enabled, /v1/chat and /v1/live-research
+    # fan out to DuckDuckGo + a few public sources at query time and
+    # mix the live hits into the LLM context. Costs ~1-2s of network per
+    # request. Default ON for demos; set LIVE_WEB_ENABLED=false to disable.
+    live_web_enabled: bool = True
+    live_web_max_queries: int = 5
+    live_web_max_hits: int = 12
+    live_web_per_query_fetch: int = 4
+    live_web_snippet_chars: int = 400
+    live_web_fetch_chars: int = 6000
+    # Cap per hit (chars) when the LLM is consuming context. Wikipedia
+    # extracts can be very long — without a per-hit cap, one 5000-char
+    # extract eats most of the context budget.
+    live_web_per_hit_context_cap: int = 2500
 
     @model_validator(mode="after")
     def _require_qdrant(self) -> "Settings":

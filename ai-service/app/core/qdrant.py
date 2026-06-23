@@ -16,6 +16,7 @@ COLLECTION_REPORTS = "readiness_reports"
 COLLECTION_KB_MASTER = "kb_master"
 COLLECTION_CHAT_LOGS = "chat_logs"
 COLLECTION_ANALYTICS = "analytics_events"
+COLLECTION_LIVE_RESEARCH = "live_research"
 
 ALL_COLLECTIONS = [
     COLLECTION_WEBSITE_PAGES,

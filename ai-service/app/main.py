@@ -11,6 +11,40 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+import httpx
+import logging as _logging
+import threading
+
+_log = _logging.getLogger(__name__)
+_live_collection_ensured = False
+_live_collection_lock = threading.Lock()
+
+
+def _ensure_live_collection_once() -> None:
+    """Call ensure_live_collection() at most once per process.
+
+    Qdrant returns 409 ("already exists") when you PUT a collection
+    that exists. That's a warning, not an error, and spamming it on
+    every boot is noisy. We try once, and never again — the collection
+    is durable on the cloud cluster.
+    """
+    global _live_collection_ensured
+    with _live_collection_lock:
+        if _live_collection_ensured:
+            return
+        try:
+            from app.modules.live_research.service import ensure_live_collection
+            ensure_live_collection(get_qdrant())
+            _live_collection_ensured = True
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code == 409:
+                _log.debug("live_research collection already exists (409)")
+                _live_collection_ensured = True
+            else:
+                _log.warning("ensure_live_collection failed: %s", exc)
+        except Exception as exc:  # noqa: BLE001
+            _log.warning("ensure_live_collection failed: %s", exc)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -20,6 +54,10 @@ async def lifespan(app: FastAPI):
     app.state.embedding_model = get_embedding_model()
     app.state.qdrant = get_qdrant()
     app.state.groq = get_groq()
+    # Create the live_research collection on the cloud Qdrant cluster.
+    # Idempotent — runs at most once per process; the 409 from a
+    # pre-existing collection is silently swallowed.
+    _ensure_live_collection_once()
     yield
 
 

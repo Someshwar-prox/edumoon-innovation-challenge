@@ -10,6 +10,12 @@ from fastapi.responses import JSONResponse
 
 from app.api.schemas import ErrorResponse
 from app.core.config import settings
+from app.core.storage import (
+    SupabaseStorageError,
+    download_object as supabase_download,
+    is_configured as supabase_configured,
+    parse_storage_hint,
+)
 from app.modules.document_processing.errors import (
     DocumentProcessingError,
     InvalidRequest,
@@ -54,6 +60,36 @@ async def process_documents(
             return _error_response(InvalidRequest(f"metadata is not valid JSON: {exc}"))
 
     uploads_dir = Path(settings.uploads_dir)
+
+    # If the gateway sent a storage hint, ai-service pulls the original file
+    # from Supabase Storage and swaps it into `files` so the existing
+    # processing pipeline doesn't need to know about storage at all.
+    storage_hint = parse_storage_hint(parsed_metadata)
+    if storage_hint and supabase_configured() and not files:
+        try:
+            body = await supabase_download(storage_hint["path"])
+        except SupabaseStorageError as exc:
+            log.error(
+                "could not fetch stored document",
+                extra={"path": storage_hint["path"], "err": str(exc)},
+            )
+            return JSONResponse(
+                status_code=502,
+                content={
+                    "error": {
+                        "code": "storage_unreachable",
+                        "message": f"Could not fetch {storage_hint['path']} from storage",
+                    }
+                },
+            )
+        # Reconstruct an UploadFile-shaped object from the bytes.
+        from fastapi import UploadFile as _UF
+        import io
+        reconstructed = _UF(
+            filename=storage_hint["path"].rsplit("/", 1)[-1],
+            file=io.BytesIO(body),
+        )
+        files = [reconstructed]
 
     ctx = DocumentProcessingContext(
         business_id=business_id,

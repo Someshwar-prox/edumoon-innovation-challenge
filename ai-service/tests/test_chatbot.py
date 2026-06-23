@@ -97,7 +97,12 @@ def _ctx(
     qdrant: FakeQdrant | None = None,
     embedder: FakeEmbedder | None = None,
     groq: FakeGroq | None = None,
+    include_live_web: bool = False,
 ) -> ChatContext:
+    """`include_live_web` defaults to False in tests so the existing
+    scenarios (no live-web setup) keep the original semantics. Tests
+    that specifically exercise the live-web path opt in explicitly.
+    """
     return ChatContext(
         business_id=business_id,
         question=question,
@@ -106,6 +111,7 @@ def _ctx(
         embedding_model=embedder or FakeEmbedder(),
         qdrant=qdrant or FakeQdrant(),
         groq=groq,
+        include_live_web=include_live_web,
     )
 
 
@@ -138,21 +144,67 @@ def test_no_relevant_chunks_returns_default_answer():
     qdrant = FakeQdrant(count=10, hits=[])  # count > 0 but no hits above threshold
     groq = FakeGroq(payload="SHOULD NOT BE CALLED")
     ctx = _ctx(qdrant=qdrant, groq=groq)
+    ctx.include_live_web = False  # opt out so we get the no-hits default
 
     result = ChatService(ctx).run()
 
-    assert result.answer == "I don't have that information in my current knowledge base."
+    assert result.answer == "I don't have that information in your indexed content."
     assert result.citations == []
     assert groq.last_user is None  # LLM never called
 
 
-def test_business_not_found_when_no_vectors():
+def test_business_not_found_when_no_vectors_and_no_live_web():
     qdrant = FakeQdrant(count=0, hits=[])
     groq = FakeGroq(payload="SHOULD NOT BE CALLED")
     ctx = _ctx(qdrant=qdrant, groq=groq)
+    # Default include_live_web=True on ChatContext. We must explicitly
+    # opt out to keep the legacy "404 when no KB" behaviour.
+    ctx.include_live_web = False
 
     with pytest.raises(BusinessNotFound):
         ChatService(ctx).run()
+
+
+def test_empty_kb_falls_through_to_live_web():
+    """No indexed content, but include_live_web=True. The chatbot
+    should NOT raise BusinessNotFound — it should run the live-web
+    augmentation and call the LLM with whatever DDG/Wikipedia return.
+    """
+    qdrant = FakeQdrant(count=0, hits=[])
+    groq = FakeGroq(payload="Based on common industry practice: ...")
+    ctx = _ctx(qdrant=qdrant, groq=groq)
+    # Provide a company_name so the live-web queries have something to
+    # build against. No company_url → no auto-crawl.
+    ctx.include_live_web = True
+    ctx.company_name = "TestCo"
+
+    result = ChatService(ctx).run()
+
+    assert isinstance(result, ChatResponse)
+    # LLM must have been called even though kb_master was empty.
+    assert groq.last_system is not None
+    assert "live-web-only" in groq.last_system.lower() or "no indexed" in groq.last_system.lower() or "public web" in groq.last_system.lower()
+    assert groq.last_user is not None
+    assert "TestCo" in groq.last_user or "Do you ship to Canada" in groq.last_user
+
+
+def test_empty_kb_no_url_no_company_name_runs_live_web():
+    """No KB, no company_url, no company_name. We still try DDG
+    (which will probably return []), but the chatbot must NOT 404 —
+    the question is still answered via the general prompt if anything
+    came back, otherwise we just hit the no-hits default."""
+    qdrant = FakeQdrant(count=0, hits=[])
+    groq = FakeGroq(payload="general answer")
+    ctx = _ctx(qdrant=qdrant, groq=groq)
+    ctx.include_live_web = True
+
+    # Should not raise — either runs live-web and answers, or returns
+    # the no-hits default. Either way the chatbot is alive.
+    try:
+        result = ChatService(ctx).run()
+        assert isinstance(result, ChatResponse)
+    except BusinessNotFound:
+        pytest.fail("Chatbot must not raise BusinessNotFound when live-web is enabled")
 
 
 def test_llm_not_configured():
@@ -247,21 +299,27 @@ def test_llm_called_with_system_prompt_and_user_prompt():
 
     ChatService(ctx).run()
 
-    assert "support assistant" in groq.last_system.lower()
+    # The advisor prompt is what's selected when the user has indexed
+    # data — verify it's in the system prompt and the question makes
+    # it through to the user prompt.
+    assert "aibridge advisor" in groq.last_system.lower()
     assert "Do you ship to Canada?" in groq.last_user
     assert "Shipping" in groq.last_user
 
 
 def test_no_embedder_raises_llm_not_configured():
+    # Question is real (not small-talk) so we get past the greeting
+    # short-circuit and into the embedding check.
     qdrant = FakeQdrant()
     ctx = ChatContext(
         business_id="biz-1",
-        question="hi",
+        question="What do you sell?",
         top_k=6,
         score_threshold=0.3,
         embedding_model=None,
         qdrant=qdrant,
         groq=FakeGroq(),
+        include_live_web=False,
     )
 
     with pytest.raises(LLMNotConfigured):

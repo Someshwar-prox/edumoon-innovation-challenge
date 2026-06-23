@@ -7,7 +7,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 
-SourceType = Literal["website", "document"]
+SourceType = Literal["website", "document", "live_web"]
 
 
 class Citation(BaseModel):

@@ -1,0 +1,375 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  BUSINESS_OWNER
+  EMPLOYEE
+}
+
+model User {
+  id                      String         @id @default(uuid())
+  email                   String         @unique
+  passwordHash            String
+  firstName               String
+  lastName                String
+  role                    Role           @default(BUSINESS_OWNER)
+  isVerified              Boolean        @default(false)
+  verificationToken       String?        @unique
+  verificationTokenExpiry DateTime?
+  resetToken              String?        @unique
+  resetTokenExpiry        DateTime?
+  createdAt               DateTime       @default(now())
+  updatedAt               DateTime       @updatedAt
+  deletedAt               DateTime?
+
+  businesses              Business[]
+  refreshTokens           RefreshToken[]
+
+  @@index([email])
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  revoked   Boolean  @default(false)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+enum Industry {
+  ECOMMERCE
+  SAAS
+  AGENCY
+  EDUCATION
+  CONSULTING
+  LOCAL_BUSINESS
+  OTHER
+}
+
+model Business {
+  id             String    @id @default(uuid())
+  name           String
+  description    String?
+  websiteUrl     String?
+  industry       Industry  @default(OTHER)
+  contactEmail   String?
+  contactPhone   String?
+  address        String?
+  isActive       Boolean   @default(true)
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  settings       BusinessSettings?
+  documents      Document[]
+  websites       Website[]
+  knowledgeBase  KnowledgeBase?
+  audits         Audit[]
+  widgets        Widget[]
+  analytics      Analytic[]
+  notifications  Notification[]
+  syncJobs       SyncJob[]
+  jobs           Job[]
+  chatSessions   ChatSession[]
+
+  @@index([userId])
+}
+
+model BusinessSettings {
+  id                  String   @id @default(uuid())
+  businessId          String   @unique
+  business            Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  timezone            String   @default("UTC")
+  language            String   @default("en")
+  emailNotifications  Boolean  @default(true)
+  analyticsSharing    Boolean  @default(true)
+  dataRetentionDays   Int      @default(90)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+enum DocumentType {
+  PDF
+  DOCX
+  TXT
+}
+
+model Document {
+  id             String       @id @default(uuid())
+  filename       String
+  originalName   String
+  mimeType       String
+  size           Int
+  type           DocumentType
+  url            String
+  extractedText  String?      @db.Text
+  chunkCount     Int          @default(0)
+  isProcessed    Boolean      @default(false)
+  businessId     String
+  business       Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  knowledgeBaseId String?
+  knowledgeBase  KnowledgeBase? @relation(fields: [knowledgeBaseId], references: [id])
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  deletedAt      DateTime?
+
+  @@index([businessId])
+}
+
+model Website {
+  id             String        @id @default(uuid())
+  url            String        @unique
+  title          String?
+  description    String?       @db.Text
+  faviconUrl     String?
+  lastCrawled    DateTime?
+  crawlStatus    String        @default("pending")
+  pageCount      Int           @default(0)
+  businessId     String
+  business       Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  pages          WebsitePage[]
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@index([businessId])
+}
+
+model WebsitePage {
+  id              String         @id @default(uuid())
+  url             String
+  title           String?
+  content         String?        @db.Text
+  summary         String?        @db.Text
+  websiteId       String
+  website         Website        @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  knowledgeBaseId String?
+  knowledgeBase   KnowledgeBase? @relation(fields: [knowledgeBaseId], references: [id])
+  createdAt       DateTime       @default(now())
+
+  @@index([websiteId])
+}
+
+model KnowledgeBase {
+  id             String        @id @default(uuid())
+  name           String
+  description    String?       @db.Text
+  documentCount  Int           @default(0)
+  pageCount      Int           @default(0)
+  chunkCount     Int           @default(0)
+  isReady        Boolean       @default(false)
+  businessId     String        @unique
+  business       Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  documents      Document[]
+  websitePages   WebsitePage[]
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@index([businessId])
+}
+
+model Audit {
+  id                    String   @id @default(uuid())
+  readinessScore        Int
+  businessSummary       String?  @db.Text
+  aiOpportunities       Json?
+  automationSuggestions Json?
+  estimatedBenefits     Json?
+  strengths             Json?
+  weaknesses            Json?
+  suggestedSolutions    Json?
+  expectedRoi           Json?
+  businessId            String
+  business              Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  createdAt             DateTime @default(now())
+
+  @@index([businessId])
+}
+
+model Visitor {
+  id           String        @id @default(uuid())
+  sessionId    String        @unique
+  ipAddress    String?
+  userAgent    String?
+  country      String?
+  city         String?
+  firstVisit   DateTime      @default(now())
+  lastVisit    DateTime      @default(now())
+  visitCount   Int           @default(1)
+  isUnique     Boolean       @default(true)
+  chatSessions ChatSession[]
+}
+
+model ChatSession {
+  id                String    @id @default(uuid())
+  sessionToken      String    @unique
+  startedAt         DateTime  @default(now())
+  endedAt           DateTime?
+  messageCount      Int       @default(0)
+  satisfactionScore Int?
+  feedback          String?   @db.Text
+  visitorId         String
+  visitor           Visitor   @relation(fields: [visitorId], references: [id])
+  businessId        String
+  business          Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  widgetId          String?
+  widget            Widget?   @relation(fields: [widgetId], references: [id], onDelete: SetNull)
+  messages          Message[]
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([businessId])
+  @@index([visitorId])
+  @@index([widgetId])
+}
+
+model Message {
+  id            String      @id @default(uuid())
+  content       String      @db.Text
+  isFromUser    Boolean
+  chatSessionId String
+  chatSession   ChatSession @relation(fields: [chatSessionId], references: [id], onDelete: Cascade)
+  createdAt     DateTime    @default(now())
+
+  @@index([chatSessionId])
+}
+
+enum Theme {
+  LIGHT
+  DARK
+  AUTO
+}
+
+enum Position {
+  BOTTOM_RIGHT
+  BOTTOM_LEFT
+  TOP_RIGHT
+  TOP_LEFT
+}
+
+model Widget {
+  id           String       @id @default(uuid())
+  title        String
+  description  String?      @db.Text
+  slug         String       @unique
+  theme        Theme        @default(AUTO)
+  position     Position     @default(BOTTOM_RIGHT)
+  isEnabled    Boolean      @default(true)
+  customCss    String?      @db.Text
+  businessId   String
+  business     Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  chatSessions ChatSession[]
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@index([businessId])
+  @@index([slug])
+}
+
+enum MetricType {
+  TOTAL_CHATS
+  POPULAR_TOPICS
+  FAILED_RESPONSES
+  RESOLUTION_RATE
+  AVERAGE_SESSION_DURATION
+}
+
+model Analytic {
+  id          String     @id @default(uuid())
+  metricType  MetricType
+  metricValue Float
+  date        DateTime   @default(now())
+  labels      Json?
+  businessId  String
+  business    Business   @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  createdAt   DateTime   @default(now())
+
+  @@index([businessId])
+}
+
+enum NotificationType {
+  SYSTEM
+  BUSINESS_UPDATE
+  AI_READINESS_REPORT
+  CHAT_RATING_REQUEST
+  SUBSCRIPTION_EXPIRING
+}
+
+model Notification {
+  id         String           @id @default(uuid())
+  title      String
+  message    String           @db.Text
+  type       NotificationType
+  isRead     Boolean          @default(false)
+  readAt     DateTime?
+  businessId String
+  business   Business         @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  createdAt  DateTime         @default(now())
+
+  @@index([businessId])
+}
+
+model SyncJob {
+  id                 String    @id @default(uuid())
+  status             String    @default("pending")
+  type               String
+  startedAt          DateTime?
+  completedAt        DateTime?
+  errorMessage       String?   @db.Text
+  pagesProcessed     Int       @default(0)
+  documentsProcessed Int       @default(0)
+  businessId         String
+  business           Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([businessId])
+  @@index([status])
+  @@index([type])
+}
+
+enum JobStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model Job {
+  id          String    @id @default(uuid())
+  name        String
+  type        String
+  payload     Json
+  status      JobStatus @default(PENDING)
+  attempts    Int       @default(0)
+  maxAttempts Int       @default(3)
+  lastError   String?   @db.Text
+  scheduledAt DateTime?
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  businessId  String?
+  business    Business? @relation(fields: [businessId], references: [id])
+
+  @@index([businessId])
+  @@index([type])
+  @@index([status])
+  @@index([scheduledAt])
+  @@index([createdAt])
+  @@index([businessId, type])
+  @@index([businessId, status])
+}

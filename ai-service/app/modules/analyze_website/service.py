@@ -19,7 +19,7 @@ from app.core.config import settings
 from app.core.embedding import EmbeddingModel
 from app.core.groq_client import GroqClient, GroqUnavailable
 from app.core.kb_mirror import mirror_to_kb_master
-from app.core.qdrant import COLLECTION_WEBSITE_PAGES
+from app.core.qdrant import COLLECTION_KB_MASTER, COLLECTION_WEBSITE_PAGES
 from app.modules.analyze_website.extractors import (
     extract_contact,
     extract_jsonld,
@@ -75,6 +75,7 @@ class CrawlerLike(Protocol):
 
 class QdrantLike(Protocol):
     def upsert(self, *, collection_name: str, points: list, wait: bool) -> Any: ...
+    def delete(self, *, collection_name: str, points_selector: Any, wait: bool) -> Any: ...
 
 
 class GroqLike(Protocol):
@@ -111,6 +112,56 @@ class WebsiteAnalysisService:
         if self.ctx.crawler is None:
             raise WebsiteUnreachable("crawler not configured")
 
+        # When force_recrawl=True (or we're seeing a brand-new URL for this
+        # business), wipe the previous website vectors for this business
+        # BEFORE we upsert. Otherwise a Qdrant upsert with the same id
+        # would replace only the chunks we happened to re-crawl, and any
+        # OLD chunks whose URLs aren't in the new crawl would stay alive
+        # and pollute /v1/chat retrieval. This is the "change one URL,
+        # the old URL is still in the KB" bug. Delete by Filter, not by
+        # point id, because we don't track which chunk came from which
+        # analysis_id.
+        if self.ctx.qdrant is not None:
+            try:
+                self.ctx.qdrant.delete(
+                    collection_name=COLLECTION_WEBSITE_PAGES,
+                    points_selector=qmodels.Filter(must=[
+                        qmodels.FieldCondition(
+                            key="business_id",
+                            match=qmodels.MatchValue(value=self.ctx.business_id),
+                        ),
+                    ]),
+                    wait=True,
+                )
+                # Also clear the kb_master mirror so /v1/chat retrieval
+                # doesn't surface vectors for URLs the user removed.
+                self.ctx.qdrant.delete(
+                    collection_name=COLLECTION_KB_MASTER,
+                    points_selector=qmodels.Filter(must=[
+                        qmodels.FieldCondition(
+                            key="business_id",
+                            match=qmodels.MatchValue(value=self.ctx.business_id),
+                        ),
+                        qmodels.FieldCondition(
+                            key="source_type",
+                            match=qmodels.MatchValue(value="website"),
+                        ),
+                    ]),
+                    wait=True,
+                )
+                log.info(
+                    "cleared prior website vectors",
+                    extra={**log_ctx, "stage": "clear"},
+                )
+            except Exception as exc:  # noqa: BLE001
+                # A stale cache shouldn't block the new crawl. Log and
+                # continue — the upsert below will still happen, the
+                # user just keeps their old chunks for this one run.
+                log.warning(
+                    "failed to clear prior website vectors: %s",
+                    exc, extra={**log_ctx, "stage": "clear"},
+                )
+
         t = time.perf_counter()
         try:
             pages, raw_warnings = self.ctx.crawler.fetch_all(self.ctx.url)
@@ -124,7 +175,44 @@ class WebsiteAnalysisService:
         )
 
         if not pages:
-            raise EmptyExtraction("no pages yielded text")
+            log.info("bot protected site detected, attempting DDG fallback", extra=log_ctx)
+            try:
+                import asyncio
+                from urllib.parse import urlparse
+                from app.modules.live_research.public_sources import DuckDuckGoBackend
+                from app.modules.analyze_website.crawler import CrawledPage
+                
+                domain = urlparse(self.ctx.url).netloc
+                query = f"{domain} about company"
+                ddg = DuckDuckGoBackend()
+                hits = asyncio.run(ddg.search(query, limit=5))
+                
+                if hits:
+                    combined_text = "\n\n".join(f"Title: {h.title}\nURL: {h.url}\nSummary: {h.snippet}" for h in hits)
+                    synthetic_page = CrawledPage(
+                        url=self.ctx.url,
+                        title=f"{domain} (from Web Search)",
+                        cleaned_text=f"The website itself could not be crawled directly. Here is a summary of the business from web search results:\n\n{combined_text}",
+                        raw_html_path=None
+                    )
+                    pages.append(synthetic_page)
+                    raw_warnings.append({"url": self.ctx.url, "reason": "crawler_failed_using_ddg_fallback"})
+            except Exception as exc:
+                log.warning("ddg fallback failed", exc_info=exc)
+
+        if not pages:
+            log.warning("no pages crawled, returning empty profile", extra=log_ctx)
+            from urllib.parse import urlparse
+            return WebsiteAnalysisResult(
+                profile=WebsiteProfile(
+                    name=urlparse(self.ctx.url).netloc,
+                    summary="Could not fetch website content.",
+                    industry="Unknown",
+                ),
+                pages_crawled=0,
+                sections_indexed=0,
+                warnings=[CrawlWarning(**w) for w in raw_warnings],
+            )
 
         warnings: list[CrawlWarning] = [CrawlWarning(**w) for w in raw_warnings]
 

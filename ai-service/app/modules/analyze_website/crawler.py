@@ -35,10 +35,28 @@ class Crawler:
         self._client: httpx.Client | None = None
 
     def __enter__(self) -> "Crawler":
+        # Browser-style headers. Many sites (Cloudflare-fronted ones in
+        # particular: chatgpt.com, claude.ai, etc.) 403 the default
+        # httpx/python-requests UA. We also send Accept-Language because
+        # some sites serve a stripped-down page for non-en locales.
+        # If the config supplied an explicit UA we honor it (lets ops
+        # override in production); otherwise we default to Chrome.
+        ua = self._ua or (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/120.0 Safari/537.36"
+        )
         self._client = httpx.Client(
             follow_redirects=True,
             timeout=self._timeout,
-            headers={"User-Agent": self._ua, "Accept-Language": "en-US,en;q=0.8"},
+            headers={
+                "User-Agent": ua,
+                "Accept": (
+                    "text/html,application/xhtml+xml,application/xml;"
+                    "q=0.9,image/webp,*/*;q=0.8"
+                ),
+                "Accept-Language": "en-US,en;q=0.9",
+            },
         )
         return self
 
@@ -114,6 +132,20 @@ class Crawler:
         if "html" not in ctype:
             raise CrawlError(f"non_html_content_type: {ctype}")
 
+        # Bail on bot-detection / challenge pages BEFORE we try to
+        # extract text from them. These pages return HTTP 200 with valid
+        # HTML but the body is just a JS challenge ("Just a moment...")
+        # so Trafilatura returns nothing. We match on:
+        #   - <title> contains "Just a moment" (Cloudflare)
+        #   - <title> contains "Attention Required" (Cloudflare alt)
+        #   - meta generator "Anomaly" (DDG anti-bot)
+        #   - body > #challenge-form (Cloudflare Turnstile)
+        if "just a moment" in resp.text.lower()[:8000] or \
+                "attention required" in resp.text.lower()[:8000] or \
+                "challenge-form" in resp.text.lower()[:30000] or \
+                "anomaly" in resp.text.lower()[:30000]:
+            raise CrawlError("bot_detection_challenge")
+
         html = resp.text
 
         cache_key = hashlib.sha1(url.encode("utf-8")).hexdigest()[:16]
@@ -128,8 +160,38 @@ class Crawler:
             html,
             include_comments=False,
             include_tables=False,
-            favour_precision=True,
+            # `favour_precision` is too strict for landing pages — many
+            # modern sites embed the main copy in dense HTML where
+            # `favour_recall` gets us the content we want. Default is
+            # precision; this is a deliberate trade-off for the
+            # "I need to know what this site is about" use case.
+            favour_recall=True,
         ) or ""
+
+        # If Trafilatura found nothing, try a more aggressive fallback
+        # using BeautifulSoup's text extractor. Some sites (chatgpt.com
+        # is the canonical example) are mostly client-rendered React
+        # and the main heading + meta description is the most we can
+        # get without a real browser. Build a minimal but useful text
+        # blob so the AI at least has a description of the page.
+        if not cleaned.strip():
+            soup = BeautifulSoup(html, "lxml")
+            chunks: list[str] = []
+            title_text = (soup.title.string or "").strip() if soup.title else ""
+            if title_text:
+                chunks.append(f"Title: {title_text}")
+            desc = (
+                soup.find("meta", attrs={"name": "description"})
+                or soup.find("meta", attrs={"property": "og:description"})
+            )
+            if desc and desc.get("content"):
+                chunks.append(f"Description: {desc.get('content').strip()}")
+            # Fall back to the first N chars of visible text.
+            body_text = soup.get_text(" ", strip=True)
+            if body_text:
+                chunks.append(f"Body excerpt: {body_text[:1500]}")
+            if chunks:
+                cleaned = "\n".join(chunks)
 
         soup = BeautifulSoup(html, "lxml")
         title = (soup.title.string or "").strip() if soup.title else ""

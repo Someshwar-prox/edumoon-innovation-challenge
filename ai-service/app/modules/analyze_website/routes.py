@@ -78,3 +78,41 @@ def _error_response(exc: AnalysisError) -> JSONResponse:
         status_code=exc.status_code,
         content={"error": {"code": exc.code, "message": str(exc)}},
     )
+
+@router.post(
+    "/generate-description",
+    summary="Generate a business description from a URL and/or Name.",
+    response_model=dict,
+)
+async def generate_description(
+    body: dict, request: Request
+) -> JSONResponse:
+    from app.api.schemas import GenerateDescriptionRequest, GenerateDescriptionResponse
+    req_body = GenerateDescriptionRequest(**body)
+    if not request.app.state.groq:
+        return JSONResponse(status_code=503, content={"error": {"code": "llm_unavailable", "message": "Groq LLM is not configured"}})
+
+    text = ""
+    if req_body.url:
+        import httpx
+        from bs4 import BeautifulSoup
+        try:
+            resp = httpx.get(req_body.url, timeout=10, follow_redirects=True)
+            soup = BeautifulSoup(resp.text, "html.parser")
+            text = soup.get_text(separator=" ", strip=True)[:5000]
+        except Exception as e:
+            log.warning(f"Failed to fetch {req_body.url} for description gen: {e}")
+
+    system = "You are an expert business analyst and copywriter."
+    company_name = req_body.name or 'this company'
+    prompt = f"Write a professional 2-sentence business description for '{company_name}'. Do not say 'Here is a description' or anything else, just return the raw description text. "
+    if text:
+        prompt += f"Base it accurately on this website text: {text}"
+    else:
+        prompt += "Base it purely on the company name."
+
+    try:
+        desc = request.app.state.groq.complete_chat(system, prompt)
+        return JSONResponse(status_code=200, content={"description": desc})
+    except Exception as exc:
+        return JSONResponse(status_code=502, content={"error": {"code": "groq_failed", "message": str(exc)}})

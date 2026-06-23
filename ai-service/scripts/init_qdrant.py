@@ -16,6 +16,7 @@ from app.core.qdrant import (
     COLLECTION_CHAT_LOGS,
     COLLECTION_DOCUMENT_CHUNKS,
     COLLECTION_KB_MASTER,
+    COLLECTION_LIVE_RESEARCH,
     COLLECTION_REPORTS,
     COLLECTION_WEBSITE_PAGES,
 )
@@ -33,6 +34,7 @@ def _payload_indexes(collection: str) -> list[tuple[str, "models.PayloadSchemaTy
     common: list[tuple[str, "models.PayloadSchemaType"]] = [
         ("business_id", models.PayloadSchemaType.KEYWORD),
         ("source_type", models.PayloadSchemaType.KEYWORD),
+        ("widget_id", models.PayloadSchemaType.KEYWORD),
     ]
     extras: dict[str, list[tuple[str, "models.PayloadSchemaType"]]] = {
         COLLECTION_WEBSITE_PAGES: [("url", models.PayloadSchemaType.KEYWORD)],
@@ -44,6 +46,7 @@ def _payload_indexes(collection: str) -> list[tuple[str, "models.PayloadSchemaTy
         COLLECTION_KB_MASTER: [("origin_collection", models.PayloadSchemaType.KEYWORD)],
         COLLECTION_CHAT_LOGS: [("session_id", models.PayloadSchemaType.KEYWORD)],
         COLLECTION_ANALYTICS: [("event_type", models.PayloadSchemaType.KEYWORD)],
+        COLLECTION_LIVE_RESEARCH: [("url", models.PayloadSchemaType.KEYWORD)],
     }
     return common + extras.get(collection, [])
 
@@ -71,6 +74,10 @@ COLLECTION_DEFS: dict[str, dict] = {
     },
     COLLECTION_ANALYTICS: {
         "purpose": "Event descriptions for the Insights module.",
+        "vectors": _vector_config(),
+    },
+    COLLECTION_LIVE_RESEARCH: {
+        "purpose": "Live public-web hits fetched at query time (DuckDuckGo + page fetches).",
         "vectors": _vector_config(),
     },
 }
