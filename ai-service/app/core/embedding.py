@@ -41,7 +41,7 @@ class EmbeddingModel:
 @lru_cache(maxsize=1)
 def get_embedding_model() -> EmbeddingModel:
     return EmbeddingModel(
-        model_path=str(settings.models_dir / "BAAI__bge-small-en-v1.5"),
+        model_path=settings.embedding_model,
         device=settings.embedding_device,
         batch_size=settings.embedding_batch_size,
     )
