@@ -412,26 +412,33 @@ export default function OnboardingPage() {
       //    the AI proxy in a background worker, so this returns in a
       //    few hundred ms instead of the previous 20-35s. The bot's
       //    reply lands a moment later — we poll for it.
+      // Grab the message count before we send the new user message
+      const prevRes = await api<{ messages: any[] }>(`/api/chat/${sid}/messages`)
+      const prevCount = prevRes.messages.length
+
       await api(`/api/chat/${sid}/message`, {
         method: 'POST',
         body: { content: text, isFromUser: true, chatMode: chatMode },
       })
-      // 3) Poll for the bot's reply. ai-service usually finishes in
-      //    1-4s; we cap at 40s and bail with a friendly "still working"
-      //    message if the proxy is genuinely slow.
-      const deadline = Date.now() + 40_000
+      
+      // 3) Poll for the bot's reply. Wait until DB has at least 2 new messages
+      //    (1 for the user's query, 1 for the AI's reply).
+      const deadline = Date.now() + 60_000 // bumped to 60s to handle long crawls
       let aiText: string | null = null
       while (Date.now() < deadline) {
         await new Promise((r) => setTimeout(r, 1200))
-        const messages = await api<{
+        const res = await api<{
           messages: Array<{ content: string; isFromUser: boolean }>
         }>(`/api/chat/${sid}/messages`)
-        const lastAi = [...messages.messages]
-          .reverse()
-          .find((m) => !m.isFromUser)
-        if (lastAi) {
-          aiText = lastAi.content
-          break
+        
+        if (res.messages.length >= prevCount + 2) {
+          const lastAi = [...res.messages]
+            .reverse()
+            .find((m) => !m.isFromUser)
+          if (lastAi) {
+            aiText = lastAi.content
+            break
+          }
         }
       }
       // Replace the placeholder with the real answer (or timeout).
