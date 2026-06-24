@@ -190,7 +190,9 @@ export class ChatService {
         .slice(-3)
         .map((m) => ({ role: m.isFromUser ? 'user' : 'assistant', content: m.content }));
 
-      const aiServiceUrl = config.externalLlmServiceUrl;
+      const aiServiceUrl = config.externalLlmServiceUrl === 'http://localhost:8000' && config.externalDocumentServiceUrl 
+        ? config.externalDocumentServiceUrl 
+        : config.externalLlmServiceUrl;
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (config.externalApiKey) {
         headers['X-Api-Key'] = config.externalApiKey;
