@@ -2,9 +2,9 @@
 
 AIBridge is an end-to-end conversational AI infrastructure designed to seamlessly integrate intelligent, voice-capable chatbots into any business website. By leveraging advanced Retrieval-Augmented Generation (RAG) and multilingual voice synthesis, AIBridge enables organizations to instantly deploy highly contextual and responsive AI agents trained on their specific knowledge bases.
 
-![AIBridge Dashboard](assets/img1.png)
-
 Here is the website live link [AI-BRIDGE](https://aibridge-lilac.vercel.app/)
+
+![AIBridge Dashboard](assets/img1.png)
 
 ## About
 
