@@ -196,7 +196,7 @@ export class ChatController {
       });
       formData.append('language', language);
 
-      const aiBaseUrl = process.env.AI_SERVICE_URL || 'http://127.0.0.1:8000';
+      const aiBaseUrl = config.externalDocumentServiceUrl || 'http://127.0.0.1:8000';
       const aiServiceUrl = `${aiBaseUrl}/v1/speech-to-text`;
       const response = await axios.post(aiServiceUrl, formData, {
         headers: {
@@ -221,7 +221,7 @@ export class ChatController {
         return res.status(400).json({ error: 'Text required' });
       }
       
-      const aiBaseUrl = process.env.AI_SERVICE_URL || 'http://127.0.0.1:8000';
+      const aiBaseUrl = config.externalDocumentServiceUrl || 'http://127.0.0.1:8000';
       const aiServiceUrl = `${aiBaseUrl}/v1/text-to-speech`;
       const response = await axios.post(aiServiceUrl, { text }, {
         responseType: 'stream',
