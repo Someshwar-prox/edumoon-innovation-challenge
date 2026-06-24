@@ -229,6 +229,7 @@ export class ChatController {
 
       res.setHeader('Content-Type', 'audio/mpeg');
       response.data.pipe(res);
+      return;
     } catch (error: any) {
       const details = error.response?.data || error.message || error;
       logger.error('TTS failed', details);
