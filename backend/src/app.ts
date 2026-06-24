@@ -96,18 +96,6 @@ app.use('/api', apiLimiter);
 // Request logging middleware
 app.use(requestLogger);
 
-// DEBUG: log req.user for /api/* requests so we can confirm auth
-// middleware set the user before the route handler ran.
-app.use('/api', (req, _res, next) => {
-  // eslint-disable-next-line no-console
-  console.log(
-    '[app-debug]', req.method, req.originalUrl,
-    'user=', (req as any).user?.id ?? null,
-    'authHeader=', !!req.headers.authorization,
-  );
-  next();
-});
-
 // Health check endpoint
 app.get('/', (req: Request, res: Response) => {
   return res.status(200).json({ status: 'OK', message: 'aibridge-backend is running' });
