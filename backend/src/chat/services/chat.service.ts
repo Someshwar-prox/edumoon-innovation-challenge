@@ -227,7 +227,7 @@ export class ChatService {
           chat_mode: chatMode,
           source: session.widgetId ? 'widget' : 'onboarding',
         },
-        { headers, timeout: 30_000 },
+        { headers, timeout: 90_000 },
       );
 
       const botText = aiResponse.data?.answer ?? aiResponse.data?.response;
