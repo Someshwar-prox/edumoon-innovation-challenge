@@ -58,7 +58,7 @@ class Settings(BaseSettings):
     groq_api_keys: str = ""
     
     groq_model: str = "llama-3.1-70b-versatile"
-    groq_temperature: float = 0.1
+    groq_temperature: float = 0.5
     groq_max_tokens: int = 1024
     groq_timeout_seconds: int = 30
 
