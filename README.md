@@ -4,6 +4,8 @@ AIBridge is an end-to-end conversational AI infrastructure designed to seamlessl
 
 ![AIBridge Dashboard](assets/img1.png)
 
+Here is the website live link AI-BRIDGE(https://aibridge-lilac.vercel.app/)
+
 ## About
 
 The core objective of AIBridge is to bridge the gap between complex machine learning architectures and accessible business tooling. Instead of relying on static, scripted chatbots, AIBridge dynamically ingests a business's live website and internal documents to construct a deep semantic understanding of the company. It then provides an embeddable widget that can handle complex user inquiries via both text and real-time voice, supporting code-switched languages like Tinglish and Hinglish native to the Indian demographic.
