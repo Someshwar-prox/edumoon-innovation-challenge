@@ -26,11 +26,27 @@ export class WidgetController {
   // GET /api/widgets — returns the current user's widgets
   async listByBusinessId(req: Request, res: Response, next: NextFunction) {
     try {
-      const resolved = await resolveBusiness(req);
-      if (typeof resolved !== 'string') {
-        return res.status(resolved.status).json({ error: resolved.error });
+      const businessId = req.query?.businessId as string | undefined;
+      const userId = req.user?.id;
+      if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+      if (businessId) {
+        const business = await businessRepository.findById(businessId);
+        if (!business || business.userId !== userId) {
+          return res.status(404).json({ error: 'Business not found or forbidden' });
+        }
+        const widgets = await widgetService.getWidgetsByBusinessId(businessId);
+        return res.status(200).json({ widgets });
       }
-      const widgets = await widgetService.getWidgetsByBusinessId(resolved);
+
+      // Fallback: Return ALL widgets across ALL user's businesses
+      const businesses = await businessRepository.findManyByUserId(userId);
+      if (businesses.length === 0) {
+        return res.status(404).json({ error: 'Business not found' });
+      }
+
+      const businessIds = businesses.map(b => b.id);
+      const widgets = await widgetService.getWidgetsByBusinessIds(businessIds);
       return res.status(200).json({ widgets });
     } catch (error) {
       return next(error);

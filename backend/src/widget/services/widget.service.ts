@@ -50,6 +50,10 @@ export class WidgetService {
     return widgetRepository.findManyByBusinessId(businessId);
   }
 
+  async getWidgetsByBusinessIds(businessIds: string[]): Promise<Widget[]> {
+    return widgetRepository.findManyByBusinessIds(businessIds);
+  }
+
   async getWidgetById(id: string): Promise<Widget> {
     const w = await widgetRepository.findById(id);
     if (!w) throw new Error('Widget not found');

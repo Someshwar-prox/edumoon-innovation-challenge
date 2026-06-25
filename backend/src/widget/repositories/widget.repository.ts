@@ -18,6 +18,13 @@ export class WidgetRepository {
     return prisma.widget.findMany({ where: { businessId }, orderBy: { createdAt: 'desc' } });
   }
 
+  async findManyByBusinessIds(businessIds: string[]): Promise<Widget[]> {
+    return prisma.widget.findMany({
+      where: { businessId: { in: businessIds } },
+      orderBy: { createdAt: 'desc' }
+    });
+  }
+
   async createWidget(data: {
     businessId: string;
     title: string;
