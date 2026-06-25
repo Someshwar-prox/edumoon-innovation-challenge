@@ -22,6 +22,10 @@ export class BusinessRepository {
     return prisma.business.findFirst({ where: { userId } });
   }
 
+  async findManyByUserId(userId: string): Promise<Business[]> {
+    return prisma.business.findMany({ where: { userId }, orderBy: { createdAt: 'desc' } });
+  }
+
   async createBusiness(data: {
     userId: string;
     name: string;

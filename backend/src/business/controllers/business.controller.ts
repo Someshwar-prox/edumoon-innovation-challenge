@@ -70,11 +70,11 @@ export class BusinessController {
       if (!userId) {
         return res.status(401).json({ error: 'Unauthorized' });
       }
-      const business = await businessService.getBusinessByUserId(userId);
-      if (!business) {
+      const businesses = await businessService.getBusinessesByUserId(userId);
+      if (businesses.length === 0) {
         return res.status(404).json({ error: 'Business not found' });
       }
-      return res.status(200).json({ business });
+      return res.status(200).json({ businesses, business: businesses[0] });
     } catch (error) {
       return next(error);
     }

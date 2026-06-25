@@ -27,6 +27,10 @@ export class BusinessService {
     return businessRepository.findByUserId(userId);
   }
 
+  async getBusinessesByUserId(userId: string): Promise<Business[]> {
+    return businessRepository.findManyByUserId(userId);
+  }
+
   async listBusinesses(
     skip: number,
     take: number,
