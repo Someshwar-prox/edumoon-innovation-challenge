@@ -181,9 +181,18 @@ export class AuditService {
         },
         { headers, timeout: 120_000 },
       );
-    } catch (err) {
+    } catch (err: any) {
       logger.error({ err, businessId }, 'ai-service /v1/generate-report failed');
-      throw new Error('AI readiness service unavailable');
+      
+      const aiError = err.response?.data?.detail || err.response?.data?.error;
+      if (err.response?.status === 404) {
+        throw new Error(aiError || 'No indexed content found for this business. Please crawl a website or upload documents first.');
+      } else if (err.response?.status === 502) {
+        throw new Error(`AI model failed: ${aiError || 'Upstream LLM error'}`);
+      } else if (err.response?.status === 503) {
+        throw new Error(`AI service misconfigured: ${aiError || 'Service unavailable'}`);
+      }
+      throw new Error(aiError || 'AI readiness service unavailable');
     }
 
     const data = aiResponse.data;
