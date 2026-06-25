@@ -146,42 +146,39 @@ export default function ReportsPage() {
           </div>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {audits.map((audit) => (
-              <div key={audit.id} className="group relative rounded-xl border border-slate-200 bg-white shadow-sm hover:shadow-md transition-all flex flex-col h-full overflow-hidden">
-                <div className="p-6 flex-1 flex flex-col">
-                  <div className="flex justify-between items-start mb-4">
-                    <div className={`p-2 rounded-lg ${
-                      audit.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-700' :
-                      audit.status === 'FAILED' ? 'bg-rose-100 text-rose-700' :
-                      'bg-indigo-100 text-indigo-700'
-                    }`}>
-                      {audit.status === 'COMPLETED' ? <CheckCircle2 className="w-5 h-5" /> :
-                       audit.status === 'FAILED' ? <XCircle className="w-5 h-5" /> :
-                       <Clock className="w-5 h-5" />}
-                    </div>
-                    {audit.score !== null && (
-                      <div className="text-right">
-                        <div className={`text-2xl font-bold ${getScoreColor(audit.score)}`}>
-                          {audit.score}%
-                        </div>
-                        <div className="text-[10px] uppercase tracking-wider text-slate-500 font-medium">
-                          Score
-                        </div>
+            {audits.map((audit) => {
+              const business = businesses.find(b => b.id === audit.businessId)
+              const scoreColor = getScoreColor(audit.readinessScore)
+              
+              return (
+                <div key={audit.id} className="group relative rounded-xl border border-slate-200 bg-white shadow-sm hover:shadow-md transition-all flex flex-col h-full overflow-hidden">
+                  <div className="p-6 flex-1 flex flex-col">
+                    <div className="flex justify-between items-start mb-4">
+                      <div className="p-2 rounded-lg bg-emerald-100 text-emerald-700">
+                        <CheckCircle2 className="w-5 h-5" />
                       </div>
-                    )}
-                  </div>
-                  
-                  <h3 className="font-semibold text-lg text-slate-900 line-clamp-1 mb-1">
-                    {audit.websiteUrl ? new URL(audit.websiteUrl).hostname : 'System Audit'}
-                  </h3>
-                  
-                  <div className="flex items-center gap-2 text-sm text-slate-500 mb-6">
-                    <Clock className="w-3.5 h-3.5" />
-                    {formatDate(audit.createdAt)}
-                  </div>
-                  
-                  <div className="mt-auto">
-                    {audit.status === 'COMPLETED' ? (
+                      {audit.readinessScore !== null && (
+                        <div className="text-right">
+                          <div className={`text-2xl font-bold ${scoreColor}`}>
+                            {audit.readinessScore}%
+                          </div>
+                          <div className="text-[10px] uppercase tracking-wider text-slate-500 font-medium">
+                            Score
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    
+                    <h3 className="font-semibold text-lg text-slate-900 line-clamp-1 mb-1">
+                      {business?.websiteUrl ? new URL(business.websiteUrl).hostname : 'System Audit'}
+                    </h3>
+                    
+                    <div className="flex items-center gap-2 text-sm text-slate-500 mb-6">
+                      <Clock className="w-3.5 h-3.5" />
+                      {formatDate(audit.createdAt)}
+                    </div>
+                    
+                    <div className="mt-auto">
                       <Link 
                         href={`/dashboard/reports/${audit.id}`}
                         className="inline-flex items-center gap-2 text-sm font-medium text-indigo-600 hover:text-indigo-700 group-hover:underline"
@@ -189,22 +186,18 @@ export default function ReportsPage() {
                         View full report
                         <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
                       </Link>
-                    ) : (
-                      <span className="text-sm font-medium text-slate-500 capitalize">
-                        {audit.status.toLowerCase()}
-                      </span>
-                    )}
+                    </div>
+                  </div>
+                  {/* Progress bar accent */}
+                  <div className="h-1 w-full bg-slate-100">
+                    <div 
+                      className="h-full bg-emerald-500" 
+                      style={{ width: audit.readinessScore ? `${audit.readinessScore}%` : '100%' }}
+                    />
                   </div>
                 </div>
-                {/* Progress bar accent */}
-                <div className="h-1 w-full bg-slate-100">
-                  <div 
-                    className={`h-full ${audit.status === 'COMPLETED' ? 'bg-emerald-500' : audit.status === 'FAILED' ? 'bg-rose-500' : 'bg-indigo-500'}`} 
-                    style={{ width: audit.score ? `${audit.score}%` : '100%' }}
-                  />
-                </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>
