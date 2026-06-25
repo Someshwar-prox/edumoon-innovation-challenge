@@ -168,8 +168,11 @@ export class AuditService {
 
     let aiResponse: { data: AiReportResponse };
     try {
+      const aiServiceUrl = config.externalLlmServiceUrl === 'http://localhost:8000' && config.externalDocumentServiceUrl 
+        ? config.externalDocumentServiceUrl 
+        : config.externalLlmServiceUrl;
       aiResponse = await axios.post<AiReportResponse>(
-        `${config.externalLlmServiceUrl}/v1/generate-report`,
+        `${aiServiceUrl}/v1/generate-report`,
         {
           business_id: businessId,
           focus_areas: options.focusAreas ?? [],
