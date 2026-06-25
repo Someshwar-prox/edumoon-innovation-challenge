@@ -6,6 +6,17 @@ import { syncService } from '../services/sync.service';
 async function resolveBusiness(req: Request): Promise<string | { error: string; status: number }> {
   const userId = req.user?.id;
   if (!userId) return { error: 'Unauthorized', status: 401 };
+
+  const businessId = req.body?.businessId || req.query?.businessId;
+  if (businessId) {
+    const business = await businessRepository.findById(businessId as string);
+    if (!business || business.userId !== userId) {
+      return { error: 'Business not found or forbidden', status: 404 };
+    }
+    return business.id;
+  }
+
+  // Fallback to first business if none provided
   const business = await businessRepository.findByUserId(userId);
   if (!business) return { error: 'Business not found', status: 404 };
   return business.id;
