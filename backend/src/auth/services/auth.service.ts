@@ -232,6 +232,18 @@ export class AuthService {
   }
 
   // ---------------------------------------------------------------------------
+  // Account Reset
+  // ---------------------------------------------------------------------------
+  async resetAccount(userId: string): Promise<void> {
+    // Delete all businesses associated with the user.
+    // Due to onDelete: Cascade on the Business model, this will automatically
+    // delete all related Widgets, ChatSessions, KnowledgeBase, Documents, etc.
+    await prisma.business.deleteMany({
+      where: { userId },
+    });
+  }
+
+  // ---------------------------------------------------------------------------
   // Internals
   // ---------------------------------------------------------------------------
   private async issueTokenPair(user: User): Promise<TokenPair> {

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -9,6 +10,7 @@ import { api } from '@/lib/api'
 import type { AuthUser, BusinessSettings } from '@/lib/auth-types'
 
 export default function SettingsPage() {
+  const router = useRouter()
   const [user, setUser] = useState<AuthUser | null>(null)
   const [settings, setSettings] = useState<BusinessSettings | null>(null)
   const [loading, setLoading] = useState(true)
@@ -177,6 +179,29 @@ export default function SettingsPage() {
                 'Save changes'
               )}
             </Button>
+            
+            {/* Danger Zone */}
+            <div className="mt-16 pt-8 border-t border-border">
+              <h3 className="text-xl font-semibold text-destructive mb-2">Danger Zone</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Permanently delete all your businesses, widgets, documents, and chat sessions. Your account login will remain intact.
+              </p>
+              <Button
+                variant="destructive"
+                onClick={async () => {
+                  if (window.confirm('Are you absolutely sure? This will delete all your data and cannot be undone.')) {
+                    try {
+                      await api('/api/auth/reset-account', { method: 'DELETE' })
+                      router.push('/dashboard/onboarding')
+                    } catch (err) {
+                      setError(err instanceof Error ? err.message : 'Failed to reset account')
+                    }
+                  }
+                }}
+              >
+                Clear Account Data
+              </Button>
+            </div>
           </>
         )}
       </div>

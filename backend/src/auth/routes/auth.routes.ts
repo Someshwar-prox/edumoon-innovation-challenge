@@ -23,5 +23,6 @@ router.get('/me', authenticate, authController.me);
 router.get('/verify-email', authController.verifyEmail);
 router.post('/forgot-password', validateRequest(forgotPasswordSchema), authController.forgotPassword);
 router.post('/reset-password', validateRequest(resetPasswordSchema), authController.resetPassword);
+router.delete('/reset-account', authenticate, authController.resetAccount);
 
 export default router;

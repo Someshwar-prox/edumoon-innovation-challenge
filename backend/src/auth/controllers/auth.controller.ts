@@ -201,6 +201,19 @@ export class AuthController {
       return next(error);
     }
   }
+  // DELETE /api/auth/reset-account
+  async resetAccount(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = req.user;
+      if (!user) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+      await authService.resetAccount(user.id);
+      return res.status(200).json({ message: 'Account reset successfully' });
+    } catch (error) {
+      return next(error);
+    }
+  }
 }
 
 export const authController = new AuthController();
