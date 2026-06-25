@@ -40,12 +40,9 @@ export class WidgetController {
   // GET /api/widget/:id — single-widget lookup
   async getById(req: Request, res: Response, next: NextFunction) {
     try {
-      const resolved = await resolveBusiness(req);
-      if (typeof resolved !== 'string') {
-        return res.status(resolved.status).json({ error: resolved.error });
-      }
       const widget = await widgetService.getWidgetById(req.params.id);
-      if (widget.businessId !== resolved) {
+      const business = await businessRepository.findById(widget.businessId);
+      if (!business || business.userId !== req.user?.id) {
         return res.status(403).json({ error: 'Forbidden' });
       }
       return res.status(200).json({ widget });
@@ -84,14 +81,10 @@ export class WidgetController {
   // PUT /api/widget/:id
   async update(req: Request, res: Response, next: NextFunction) {
     try {
-      const resolved = await resolveBusiness(req);
-      if (typeof resolved !== 'string') {
-        return res.status(resolved.status).json({ error: resolved.error });
-      }
-      
       const { id } = req.params;
       const widget = await widgetService.getWidgetById(id);
-      if (widget.businessId !== resolved) {
+      const business = await businessRepository.findById(widget.businessId);
+      if (!business || business.userId !== req.user?.id) {
         return res.status(403).json({ error: 'Forbidden' });
       }
 
@@ -113,14 +106,10 @@ export class WidgetController {
   // DELETE /api/widget/:id
   async delete(req: Request, res: Response, next: NextFunction) {
     try {
-      const resolved = await resolveBusiness(req);
-      if (typeof resolved !== 'string') {
-        return res.status(resolved.status).json({ error: resolved.error });
-      }
-
       const { id } = req.params;
       const widget = await widgetService.getWidgetById(id);
-      if (widget.businessId !== resolved) {
+      const business = await businessRepository.findById(widget.businessId);
+      if (!business || business.userId !== req.user?.id) {
         return res.status(403).json({ error: 'Forbidden' });
       }
 

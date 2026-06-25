@@ -27,9 +27,13 @@ export class DocumentController {
           return res.status(401).json({ error: 'Unauthorized' });
         }
 
-        const business = await businessRepository.findByUserId(userId);
-        if (!business) {
-          return res.status(404).json({ error: 'Business not found' });
+        const businessId = req.body.businessId as string;
+        const business = businessId 
+          ? await businessRepository.findById(businessId)
+          : await businessRepository.findByUserId(userId);
+
+        if (!business || business.userId !== userId) {
+          return res.status(404).json({ error: 'Business not found or forbidden' });
         }
 
         if (!req.file) {
@@ -57,15 +61,11 @@ export class DocumentController {
   // GET /api/documents/:id
   async getById(req: Request, res: Response, next: NextFunction) {
     try {
-      const userId = req.user?.id;
-      if (!userId) return res.status(401).json({ error: 'Unauthorized' });
-      const business = await businessRepository.findByUserId(userId);
-      if (!business) return res.status(404).json({ error: 'Business not found' });
-
       const { id } = req.params;
       const document = await documentService.getDocumentById(id);
+      const business = await businessRepository.findById(document.businessId);
       
-      if (document.businessId !== business.id) {
+      if (!business || business.userId !== req.user?.id) {
         return res.status(403).json({ error: 'Forbidden' });
       }
 
@@ -82,10 +82,16 @@ export class DocumentController {
       if (!userId) {
         return res.status(401).json({ error: 'Unauthorized' });
       }
-      const business = await businessRepository.findByUserId(userId);
-      if (!business) {
-        return res.status(404).json({ error: 'Business not found' });
+      
+      const businessId = req.query.businessId as string;
+      const business = businessId 
+        ? await businessRepository.findById(businessId)
+        : await businessRepository.findByUserId(userId);
+
+      if (!business || business.userId !== userId) {
+        return res.status(404).json({ error: 'Business not found or forbidden' });
       }
+      
       const documents = await documentService.getDocumentsByBusinessId(business.id);
       return res.status(200).json({ documents });
     } catch (error) {
@@ -96,23 +102,16 @@ export class DocumentController {
   // PUT /api/documents/:id
   async update(req: Request, res: Response, next: NextFunction) {
     try {
-      const userId = req.user?.id;
-      if (!userId) return res.status(401).json({ error: 'Unauthorized' });
-      const business = await businessRepository.findByUserId(userId);
-      if (!business) return res.status(404).json({ error: 'Business not found' });
-
       const { id } = req.params;
       const document = await documentService.getDocumentById(id);
-      if (document.businessId !== business.id) {
+      const business = await businessRepository.findById(document.businessId);
+      if (!business || business.userId !== req.user?.id) {
         return res.status(403).json({ error: 'Forbidden' });
       }
 
       const data = updateDocumentSchema.parse(req.body);
       const updated = await documentService.updateDocument(id, data);
-      return res.status(200).json({
-        message: 'Document updated successfully',
-        document: updated,
-      });
+      return res.status(200).json({ document: updated });
     } catch (error) {
       return next(error);
     }
@@ -121,14 +120,10 @@ export class DocumentController {
   // DELETE /api/documents/:id
   async delete(req: Request, res: Response, next: NextFunction) {
     try {
-      const userId = req.user?.id;
-      if (!userId) return res.status(401).json({ error: 'Unauthorized' });
-      const business = await businessRepository.findByUserId(userId);
-      if (!business) return res.status(404).json({ error: 'Business not found' });
-
       const { id } = req.params;
       const document = await documentService.getDocumentById(id);
-      if (document.businessId !== business.id) {
+      const business = await businessRepository.findById(document.businessId);
+      if (!business || business.userId !== req.user?.id) {
         return res.status(403).json({ error: 'Forbidden' });
       }
 
