@@ -242,12 +242,24 @@ export class ChatService {
         const newCount = await chatRepository.getMessageCountByChatSessionId(chatSessionId);
         await chatRepository.updateMessageCount(chatSessionId, newCount);
       }
-    } catch (err) {
+    } catch (err: any) {
       logger.error({ err }, 'Failed to communicate with AI Service');
+      
+      let errorMessage = 'Sorry, the AI service encountered an error and could not generate a response.';
+      const aiError = err.response?.data?.detail || err.response?.data?.error;
+      
+      if (err.response?.status === 404) {
+        errorMessage = "I don't have any knowledge to answer that yet! Please crawl a website or upload some documents to my Knowledge Base first.";
+      } else if (err.response?.status === 502) {
+        errorMessage = `AI model failed to respond: ${aiError || 'Upstream LLM error'}`;
+      } else if (aiError) {
+        errorMessage = `AI service error: ${aiError}`;
+      }
+
       try {
         await chatRepository.createMessage({
           chatSessionId,
-          content: 'Sorry, the AI service encountered an error and could not generate a response.',
+          content: errorMessage,
           isFromUser: false,
         });
         const newCount = await chatRepository.getMessageCountByChatSessionId(chatSessionId);
