@@ -78,6 +78,8 @@ export class BusinessService {
     if (!existing) {
       throw new Error('Business not found');
     }
+    // Wipe knowledge from Qdrant when business is deleted to prevent orphaned vectors
+    void wipeBusinessKnowledge(id);
     return businessRepository.deleteBusiness(id);
   }
 }

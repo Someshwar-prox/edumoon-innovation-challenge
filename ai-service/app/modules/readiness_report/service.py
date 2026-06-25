@@ -119,16 +119,21 @@ class ReadinessReportService:
             raise VectorDBUnreachable(f"qdrant count failed: {exc}") from exc
 
         total = getattr(count_result, "count", None) or 0
+        
+        evidence_by_area: dict[str, list[str]] = {area: [] for area in (self.ctx.focus_areas or ALL_FOCUS_AREAS)}
+        sources_used = SourcesUsed(documents=0, pages=0)
+
         if total == 0:
             log.info(
-                "business has no vectors",
+                "business has no vectors, generating empty report",
                 extra={**log_ctx, "stage": "count", "count": 0,
                        "duration_ms": int((time.perf_counter() - t) * 1000)},
             )
-            raise BusinessNotFound(f"no indexed content for business_id={self.ctx.business_id}")
-
-        pairs = questions_for(self.ctx.focus_areas)
-        evidence_by_area, sources_used = self._gather_evidence(pairs, flt, log_ctx)
+            # Do not throw BusinessNotFound. Let the LLM generate a 0/100 report 
+            # with empty evidence so the user understands they need to upload data.
+        else:
+            pairs = questions_for(self.ctx.focus_areas)
+            evidence_by_area, sources_used = self._gather_evidence(pairs, flt, log_ctx)
 
         user_prompt = build_user_prompt(
             evidence_by_area,
