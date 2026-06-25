@@ -182,9 +182,15 @@ export class AuditService {
         { headers, timeout: 120_000 },
       );
     } catch (err: any) {
-      logger.error({ err, businessId }, 'ai-service /v1/generate-report failed');
+      logger.error({ err }, 'Failed to generate report from AI service');
       
-      const aiError = err.response?.data?.detail || err.response?.data?.error;
+      let aiError = err.response?.data?.detail || err.response?.data?.error;
+      if (typeof aiError === 'object' && aiError?.message) {
+        aiError = aiError.message;
+      } else if (typeof aiError === 'object') {
+        aiError = JSON.stringify(aiError);
+      }
+
       if (err.response?.status === 404) {
         throw new Error(aiError || 'No indexed content found for this business. Please crawl a website or upload documents first.');
       } else if (err.response?.status === 502) {
