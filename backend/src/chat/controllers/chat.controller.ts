@@ -92,9 +92,14 @@ export class ChatController {
       if (!userId) {
         return res.status(401).json({ error: 'Unauthorized' });
       }
-      const business = await businessRepository.findByUserId(userId);
-      if (!business) {
-        return res.status(404).json({ error: 'Business not found' });
+      
+      const businessId = req.query.businessId as string;
+      const business = businessId 
+        ? await businessRepository.findById(businessId)
+        : await businessRepository.findByUserId(userId);
+
+      if (!business || business.userId !== userId) {
+        return res.status(404).json({ error: 'Business not found or forbidden' });
       }
       const chatSessions = await chatService.getChatSessionsByBusinessId(business.id);
       return res.status(200).json({ chatSessions });
@@ -172,9 +177,13 @@ export class ChatController {
       if (!userId) {
         return res.status(401).json({ error: 'Unauthorized' });
       }
-      const business = await businessRepository.findByUserId(userId);
-      if (!business) {
-        return res.status(404).json({ error: 'Business not found' });
+      const businessId = req.query.businessId as string;
+      const business = businessId 
+        ? await businessRepository.findById(businessId)
+        : await businessRepository.findByUserId(userId);
+
+      if (!business || business.userId !== userId) {
+        return res.status(404).json({ error: 'Business not found or forbidden' });
       }
       const activeSessions = await chatService.getActiveChatSessionsByBusinessId(business.id);
       return res.status(200).json({ activeSessions });
