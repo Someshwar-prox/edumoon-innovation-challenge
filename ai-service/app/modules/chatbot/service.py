@@ -86,6 +86,24 @@ class ChatContext:
     chat_mode: str = "text"
 
 
+def _requires_live_web(question: str, groq_client: GroqLike | None) -> bool:
+    """Fast check to see if the query actually needs web research."""
+    if not groq_client:
+        return False
+    if len(question.strip()) < 5:
+        return False
+    prompt = (
+        "Does this user query require searching the live internet for external "
+        "competitors, reviews, news, recent events, or tech stacks? Answer ONLY 'YES' or 'NO'.\n"
+        f"Query: {question}"
+    )
+    try:
+        ans = groq_client.complete_chat("You are a classification bot.", prompt)
+        return "YES" in ans.strip().upper()
+    except Exception:
+        return False
+
+
 class ChatService:
     def __init__(self, ctx: ChatContext) -> None:
         self.ctx = ctx
@@ -226,26 +244,7 @@ class ChatService:
                 asked_at=datetime.now(timezone.utc),
             )
 
-        # ------------------------------------------------------------------
-        # Empty-context grounding guard. If the KB returned 0 hits AND
-        # the live-web fanout didn't run (or returned 0 hits too), don't
-        # fall through to Groq with an empty context — the LLM will
-        # invent names, numbers, and "competitors" out of nowhere (the
-        # "Ankama" / "Manu Chhabria" failure mode the user reported).
-        # Bail with a plain, business-specific message instead.
-        # ------------------------------------------------------------------
-        if not hits and not (self.ctx.include_live_web and settings.live_web_enabled):
-            name = (self.ctx.company_name or "this business").strip() or "this business"
-            return ChatResponse(
-                answer=(
-                    f"I don't have any indexed information about {name} yet. "
-                    "Try re-crawling the website from the onboarding page or "
-                    "uploading a document — then ask again."
-                ),
-                citations=[],
-                model=settings.groq_model if self.ctx.groq else "",
-                asked_at=datetime.now(timezone.utc),
-            )
+        # (Grounding guard moved to after live-web)
 
         hit_dicts = [_hit_to_dict(h) for h in hits]
         context_hits, _chars = _cap_context(hit_dicts, settings.chat_max_context_chars)
@@ -264,6 +263,7 @@ class ChatService:
             self.ctx.include_live_web
             and settings.live_web_enabled
             and self.ctx.embedding_model is not None
+            and _requires_live_web(self.ctx.question, self.ctx.groq)
         ):
             try:
                 # ChatService runs in a worker thread (via run_in_executor),
@@ -294,6 +294,27 @@ class ChatService:
                 log.warning(
                     "live-web fetch failed (continuing with KB only): %s",
                     exc, extra={**log_ctx, "stage": "live_web"},
+                )
+
+        # ------------------------------------------------------------------
+        # Empty-context grounding guard.
+        # If we found no KB hits AND no live-web hits, we risk LLM hallucination.
+        # For onboarding (generic), we bail out. For custom widgets, we allow
+        # empty context so the LLM can still chat using its Persona/Skill.
+        # ------------------------------------------------------------------
+        if not context_hits:
+            is_widget = bool(self.ctx.widget_name or self.ctx.widget_description)
+            if not is_widget:
+                name = (self.ctx.company_name or "this business").strip() or "this business"
+                return ChatResponse(
+                    answer=(
+                        f"I don't have any indexed information about {name} yet. "
+                        "Try re-crawling the website from the onboarding page or "
+                        "uploading a document — then ask again."
+                    ),
+                    citations=[],
+                    model=settings.groq_model if self.ctx.groq else "",
+                    asked_at=datetime.now(timezone.utc),
                 )
 
         if self.ctx.groq is None:
