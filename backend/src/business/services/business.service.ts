@@ -1,5 +1,6 @@
 import { Industry } from '@prisma/client';
 import { Business } from '@prisma/client';
+import { prisma } from '../../lib/prisma';
 import { businessRepository } from '../repositories/business.repository';
 import { wipeBusinessKnowledge } from './knowledge-wipe.service';
 
@@ -27,7 +28,20 @@ export class BusinessService {
     return businessRepository.findByUserId(userId);
   }
 
-  async getBusinessesByUserId(userId: string): Promise<Business[]> {
+  async getBusinessesByUserId(userId: string, includeLatestAudit: boolean = false): Promise<any[]> {
+    if (includeLatestAudit) {
+      // Prisma's `include` with `take: 1` allows us to fetch the most recent audit efficiently.
+      return prisma.business.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+        include: {
+          audits: {
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+          },
+        },
+      });
+    }
     return businessRepository.findManyByUserId(userId);
   }
 

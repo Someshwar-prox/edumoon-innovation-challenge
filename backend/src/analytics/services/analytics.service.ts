@@ -118,6 +118,29 @@ export class AnalyticsService {
     if (!business) throw new Error('Business not found');
     return analyticsRepository.countByBusinessId(businessId);
   }
+
+  async getKpis(businessId: string): Promise<{ totalChats: number, activeChats: number, averageSatisfaction: number }> {
+    const business = await businessRepository.findById(businessId);
+    if (!business) throw new Error('Business not found');
+    
+    // Import prisma locally if not at the top
+    const { prisma } = require('../../lib/prisma');
+    
+    const [totalChats, activeChats, agg] = await Promise.all([
+      prisma.chatSession.count({ where: { businessId } }),
+      prisma.chatSession.count({ where: { businessId, endedAt: null } }),
+      prisma.chatSession.aggregate({
+        where: { businessId, satisfactionScore: { not: null } },
+        _avg: { satisfactionScore: true }
+      })
+    ]);
+
+    return {
+      totalChats,
+      activeChats,
+      averageSatisfaction: agg._avg.satisfactionScore ?? 0,
+    };
+  }
 }
 
 export const analyticsService = new AnalyticsService();

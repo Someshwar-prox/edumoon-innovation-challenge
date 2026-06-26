@@ -29,9 +29,14 @@ export class ChatController {
         try {
           const widget = await prisma.widget.findUnique({
             where: { id: data.widgetId },
-            select: { businessId: true },
+            select: { businessId: true, isEnabled: true },
           });
-          if (widget) businessId = widget.businessId;
+          if (widget) {
+            if (!widget.isEnabled) {
+              return res.status(403).json({ error: 'This widget is currently disabled by the owner.' });
+            }
+            businessId = widget.businessId;
+          }
         } catch {
           // ignore — fall through to the user/businessId check below
         }
@@ -129,13 +134,17 @@ export class ChatController {
         data.content,
         data.isFromUser,
         data.chatMode,
+        data.includeLiveWeb,
       );
       return res.status(201).json({
         message: 'Message created successfully',
         result: message,
         chatSessionId,
       });
-    } catch (error) {
+    } catch (error: any) {
+      if (error.message === 'This widget is currently disabled by the owner.') {
+        return res.status(403).json({ error: error.message });
+      }
       return next(error);
     }
   }
@@ -227,13 +236,14 @@ export class ChatController {
   async textToSpeech(req: Request, res: Response, next: NextFunction) {
     try {
       const text = req.body.text;
+      const voice = req.body.voice;
       if (!text) {
         return res.status(400).json({ error: 'Text required' });
       }
       
       const aiBaseUrl = config.externalLlmServiceUrl || config.externalDocumentServiceUrl || process.env.AI_SERVICE_URL || 'http://127.0.0.1:8000';
       const aiServiceUrl = `${aiBaseUrl}/v1/text-to-speech`;
-      const response = await axios.post(aiServiceUrl, { text }, {
+      const response = await axios.post(aiServiceUrl, { text, voice }, {
         responseType: 'stream',
       });
 

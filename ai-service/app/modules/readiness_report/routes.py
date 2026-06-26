@@ -48,6 +48,7 @@ async def generate_report(
 
     ctx = ReadinessContext(
         business_id=body.business_id,
+        url=str(body.url) if body.url else None,
         focus_areas=list(body.focus_areas) if body.focus_areas else None,
         include_documents=body.include_documents,
         language=body.language,
@@ -56,7 +57,7 @@ async def generate_report(
         groq=request.app.state.groq.get("report") or request.app.state.groq.get("general"),
     )
     try:
-        result = ReadinessReportService(ctx).run()
+        result = await ReadinessReportService(ctx).run()
     except ReadinessError as exc:
         return _error_response(exc)
     except Exception as exc:  # noqa: BLE001

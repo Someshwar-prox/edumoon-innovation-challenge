@@ -26,6 +26,11 @@ router.get(
   analyticsController.getByBusinessId,
 );
 router.get(
+  '/:businessId/kpis',
+  validateParams(businessIdParam),
+  analyticsController.getKpis,
+);
+router.get(
   '/:businessId/count',
   validateParams(businessIdParam),
   analyticsController.getCount,

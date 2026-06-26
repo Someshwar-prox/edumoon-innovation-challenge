@@ -33,23 +33,17 @@ export interface GenerateReportOptions {
 export interface AiReportResponse {
   report_id?: string;
   score?: number;
-  subscores?: Record<string, number>;
+  breakdown?: Record<string, number>;
+  confidence?: number;
   strengths?: string[];
   weaknesses?: string[];
-  opportunities?: string[];
-  automation_suggestions?: Array<{
+  recommendations?: Array<{
     title: string;
     description?: string;
-    estimated_hours_saved_per_week?: number;
+    severity?: string;
   }>;
   company_summary?: string;
   business_summary?: string;
-  ai_opportunities?: string[];
-  roi_estimates?: Array<{
-    suggestion_title: string;
-    estimated_annual_savings_usd: number;
-    confidence: string;
-  }>;
 }
 
 export type UpdateAuditInput = Partial<Omit<CreateAuditInput, 'businessId'>>;
@@ -180,6 +174,7 @@ export class AuditService {
         `${aiServiceUrl}/v1/generate-report`,
         {
           business_id: businessId,
+          url: business.websiteUrl ?? undefined,
           focus_areas: options.focusAreas ?? [],
           include_documents: options.includeDocuments ?? true,
           language: options.language ?? 'en',
@@ -214,11 +209,10 @@ export class AuditService {
 
     const strengths = data.strengths ?? [];
     const weaknesses = data.weaknesses ?? [];
-    const opportunities = data.opportunities ?? data.ai_opportunities ?? [];
-    const automationSuggestions = (data.automation_suggestions ?? []).map((s) => ({
+    const recommendations = (data.recommendations ?? []).map((s) => ({
       title: s.title,
       description: s.description ?? '',
-      estimatedHoursSavedPerWeek: s.estimated_hours_saved_per_week ?? null,
+      severity: s.severity ?? 'medium',
     }));
     const businessSummary =
       data.business_summary ?? data.company_summary ?? null;
@@ -227,13 +221,16 @@ export class AuditService {
       businessId,
       readinessScore: Math.round(score),
       businessSummary: businessSummary ?? undefined,
-      aiOpportunities: opportunities,
-      automationSuggestions,
-      estimatedBenefits: { subscores: data.subscores ?? {} },
+      aiOpportunities: [], // Deprecated
+      automationSuggestions: recommendations,
+      estimatedBenefits: { 
+        breakdown: data.breakdown ?? {},
+        confidence: data.confidence ?? 0
+      },
       strengths,
       weaknesses,
-      suggestedSolutions: opportunities,
-      expectedRoi: data.roi_estimates ? { estimates: data.roi_estimates } : undefined,
+      suggestedSolutions: [], // Deprecated
+      expectedRoi: undefined,
     });
   }
 }

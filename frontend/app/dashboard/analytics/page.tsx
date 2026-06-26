@@ -18,7 +18,7 @@ export default function AnalyticsDashboardPage() {
   const [businesses, setBusinesses] = useState<Business[]>([])
   const [selectedId, setSelectedId] = useState<string>('')
   const [rows, setRows] = useState<AnalyticRow[]>([])
-  const [sessions, setSessions] = useState<ChatSession[]>([])
+  const [kpis, setKpis] = useState<{ totalChats: number, activeChats: number, averageSatisfaction: number }>({ totalChats: 0, activeChats: 0, averageSatisfaction: 0 })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -48,13 +48,13 @@ export default function AnalyticsDashboardPage() {
     let cancelled = false
     ;(async () => {
       try {
-        const [a, s] = await Promise.all([
+        const [a, k] = await Promise.all([
           api<{ analytics: AnalyticRow[] }>(`/api/analytics/${selectedId}?limit=200`),
-          api<{ chatSessions: ChatSession[] }>(`/api/chat/business`).catch(() => null),
+          api<{ totalChats: number, activeChats: number, averageSatisfaction: number }>(`/api/analytics/${selectedId}/kpis`).catch(() => null),
         ])
         if (cancelled) return
         setRows(a.analytics ?? [])
-        setSessions(s?.chatSessions ?? [])
+        if (k) setKpis(k)
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : 'Failed to load analytics')
@@ -66,18 +66,19 @@ export default function AnalyticsDashboardPage() {
     }
   }, [selectedId])
 
-  const totalChats = sessions.length
-  const activeChats = sessions.filter((s) => !s.endedAt).length
-  const satisfaction =
-    sessions
-      .map((s) => s.satisfactionScore)
-      .filter((n): n is number => typeof n === 'number')
-      .reduce((acc, n, _, arr) => acc + n / arr.length, 0) || 0
+  const totalChats = kpis.totalChats
+  const activeChats = kpis.activeChats
+  const satisfaction = kpis.averageSatisfaction
 
   const metricsByType: Record<string, number> = {}
+  // Only display count-based metrics in the pie/bar chart so they don't get dwarfed
+  // by large duration numbers or rates.
+  const chartableMetrics = ['TOTAL_CHATS', 'FAILED_RESPONSES', 'POPULAR_TOPICS']
   for (const r of rows) {
-    metricsByType[r.metricType] =
-      (metricsByType[r.metricType] ?? 0) + Number(r.metricValue ?? 0)
+    if (chartableMetrics.includes(r.metricType)) {
+      metricsByType[r.metricType] =
+        (metricsByType[r.metricType] ?? 0) + Number(r.metricValue ?? 0)
+    }
   }
   const chartData = Object.entries(metricsByType).map(([name, value]) => ({
     name: labelize(name),

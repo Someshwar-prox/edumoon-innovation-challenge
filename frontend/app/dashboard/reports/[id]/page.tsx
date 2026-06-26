@@ -36,15 +36,16 @@ export default function ReportDetailPage({ params }: ReportDetailPageProps) {
     }
   }, [reportId])
 
-  const scores = (audit?.estimatedBenefits?.subscores as Record<string, number> | undefined) ?? {}
+  const scores = (audit?.estimatedBenefits?.breakdown as Record<string, number> | undefined) ?? {}
+  const confidence = (audit?.estimatedBenefits?.confidence as number | undefined) ?? null
 
   return (
     <div className="p-8">
       <div className="max-w-5xl">
-        <Link href="/dashboard">
+        <Link href="/dashboard/reports">
           <button className="flex items-center gap-2 text-muted-foreground hover:text-foreground mb-6 transition-colors">
             <ArrowLeft className="w-4 h-4" />
-            Back to dashboard
+            Back to reports
           </button>
         </Link>
 
@@ -65,6 +66,11 @@ export default function ReportDetailPage({ params }: ReportDetailPageProps) {
                 <p className="text-muted-foreground mt-2">
                   Generated on {new Date(audit.createdAt).toLocaleString()}
                 </p>
+                {confidence !== null && (
+                  <p className="text-sm text-emerald-600 font-medium mt-1">
+                    Extraction Confidence: {confidence}%
+                  </p>
+                )}
               </div>
               <Button
                 className="bg-primary hover:bg-primary/90"
@@ -90,8 +96,8 @@ export default function ReportDetailPage({ params }: ReportDetailPageProps) {
                       {Object.entries(scores).map(([k, v]) => (
                         <div key={k}>
                           <p className="text-xs text-muted-foreground">{labelize(k)}</p>
-                          <p className={`text-base font-semibold ${getScoreColor(v)}`}>
-                            {v}/100
+                          <p className={`text-base font-semibold text-foreground`}>
+                            {v}/25
                           </p>
                         </div>
                       ))}
@@ -108,24 +114,24 @@ export default function ReportDetailPage({ params }: ReportDetailPageProps) {
 
             <Section title="Strengths" items={(audit.strengths as string[]) ?? []} tone="good" />
             <Section title="Weaknesses" items={(audit.weaknesses as string[]) ?? []} tone="bad" />
-            <Section title="Opportunities" items={(audit.aiOpportunities as string[]) ?? []} tone="neutral" />
-
             {Array.isArray(audit.automationSuggestions) && audit.automationSuggestions.length > 0 && (
               <div className="bg-card rounded-lg border border-border p-6 mt-6">
-                <h3 className="text-xl font-semibold mb-4">Automation suggestions</h3>
+                <h3 className="text-xl font-semibold mb-4">Recommendations</h3>
                 <ul className="space-y-3">
                   {audit.automationSuggestions.map((s, i) => {
-                    const item = s as { title?: string; description?: string; estimatedHoursSavedPerWeek?: number | null }
+                    const item = s as { title?: string; description?: string; severity?: string }
                     return (
-                      <li key={i} className="border border-border rounded-lg p-4">
-                        <h4 className="font-semibold">{item.title ?? 'Automation idea'}</h4>
+                      <li key={i} className={`border rounded-lg p-4 ${item.severity === 'high' ? 'border-red-200 bg-red-50/50' : item.severity === 'medium' ? 'border-orange-200 bg-orange-50/50' : 'border-border'}`}>
+                        <div className="flex items-start justify-between gap-4">
+                          <h4 className="font-semibold">{item.title ?? 'Recommendation'}</h4>
+                          {item.severity && (
+                            <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full ${item.severity === 'high' ? 'bg-red-100 text-red-700' : item.severity === 'medium' ? 'bg-orange-100 text-orange-700' : 'bg-slate-100 text-slate-700'}`}>
+                              {item.severity} severity
+                            </span>
+                          )}
+                        </div>
                         {item.description && (
                           <p className="text-sm text-muted-foreground mt-1">{item.description}</p>
-                        )}
-                        {item.estimatedHoursSavedPerWeek != null && (
-                          <p className="text-xs text-muted-foreground mt-2">
-                            Estimated {item.estimatedHoursSavedPerWeek}h saved per week
-                          </p>
                         )}
                       </li>
                     )

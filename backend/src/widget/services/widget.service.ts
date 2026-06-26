@@ -97,6 +97,7 @@ export class WidgetService {
       position: data.position,
       isEnabled: data.isEnabled,
       customCss: data.customCss === undefined ? undefined : data.customCss,
+      description: data.description === undefined ? undefined : data.description,
     });
     await widgetListener.onWidgetUpdated(new WidgetUpdatedEvent(updated.id, data));
     return updated;

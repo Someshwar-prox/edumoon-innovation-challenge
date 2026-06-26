@@ -1,5 +1,6 @@
 import logger from '../../utils/logger';
 import { ChatSession } from '@prisma/client';
+import { analyticsService } from '../../analytics/services/analytics.service';
 import {
   ChatSessionCreatedEvent,
   ChatSessionEndedEvent,
@@ -18,6 +19,12 @@ export class ChatListener {
         },
         'Chat session created',
       );
+      // Record analytics event
+      await analyticsService.createAnalytics({
+        businessId: event.businessId,
+        metricType: 'TOTAL_CHATS',
+        metricValue: 1,
+      });
       // TODO: notify business owner of new chat request (push / email)
       // TODO: seed chatbot context window for the session
     } catch (err) {

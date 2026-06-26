@@ -67,9 +67,8 @@ export class BusinessRepository {
   }
 
   async deleteBusiness(id: string): Promise<Business> {
-    return prisma.business.update({
+    return prisma.business.delete({
       where: { id },
-      data: { deletedAt: new Date() },
     });
   }
 

@@ -55,7 +55,8 @@ export class BusinessController {
       if (!userId) {
         return res.status(401).json({ error: 'Unauthorized' });
       }
-      const businesses = await businessService.getBusinessesByUserId(userId);
+      const includeLatestAudit = req.query.includeLatestAudit === 'true';
+      const businesses = await businessService.getBusinessesByUserId(userId, includeLatestAudit);
       if (businesses.length === 0) {
         return res.status(404).json({ error: 'Business not found' });
       }

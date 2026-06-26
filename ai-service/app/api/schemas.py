@@ -35,6 +35,7 @@ FocusArea = Literal[
 
 class GenerateReportRequest(BaseModel):
     business_id: str = Field(..., description="UUID owned by the gateway.")
+    url: HttpUrl | None = Field(None, description="URL to scrape and audit in real-time.")
     focus_areas: list[FocusArea] | None = Field(
         None, description="Subset of focus areas; default = all."
     )

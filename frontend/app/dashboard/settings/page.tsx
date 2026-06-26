@@ -150,6 +150,40 @@ export default function SettingsPage() {
                       }
                     />
                   </div>
+                  <div className="flex items-center gap-2 pt-2">
+                    <input
+                      type="checkbox"
+                      id="emailNotifications"
+                      className="w-4 h-4 rounded border-border"
+                      checked={settings.emailNotifications ?? true}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          emailNotifications: e.target.checked,
+                        })
+                      }
+                    />
+                    <Label htmlFor="emailNotifications" className="font-normal cursor-pointer">
+                      Receive email notifications
+                    </Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="analyticsSharing"
+                      className="w-4 h-4 rounded border-border"
+                      checked={settings.analyticsSharing ?? true}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          analyticsSharing: e.target.checked,
+                        })
+                      }
+                    />
+                    <Label htmlFor="analyticsSharing" className="font-normal cursor-pointer">
+                      Share analytics data to improve AI performance
+                    </Label>
+                  </div>
                 </div>
               </div>
             )}

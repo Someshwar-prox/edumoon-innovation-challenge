@@ -10,6 +10,7 @@ import hashlib
 import logging
 import time
 import uuid
+import json
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Protocol
@@ -30,18 +31,15 @@ from app.modules.readiness_report.errors import (
     VectorDBUnreachable,
 )
 from app.modules.readiness_report.prompts import (
-    ALL_FOCUS_AREAS,
     SYSTEM_PROMPT,
-    build_user_prompt,
-    questions_for,
 )
 from app.modules.readiness_report.schemas import (
     AutomationSuggestion,
+    Breakdown,
     ReadinessReport,
-    ROIEstimate,
-    SourcesUsed,
-    Subscores,
 )
+from app.modules.readiness_report.collection import collect_evidence, ExtractionFailure, AuditEvidence
+from app.modules.readiness_report.rule_engine import analyze_rules
 
 log = logging.getLogger(__name__)
 
@@ -69,6 +67,7 @@ class GroqLike(Protocol):
 @dataclass
 class ReadinessContext:
     business_id: str
+    url: str | None
     focus_areas: list[str] | None
     include_documents: bool
     language: str
@@ -83,17 +82,14 @@ class ReadinessReportService:
         self.report_id = str(uuid.uuid4())
         self._t0 = time.perf_counter()
 
-    def run(self) -> ReadinessReport:
+    async def run(self) -> ReadinessReport:
         log_ctx = {
             "report_id": self.report_id,
             "business_id": self.ctx.business_id,
-            "focus_areas": self.ctx.focus_areas,
-            "include_documents": self.ctx.include_documents,
+            "url": self.ctx.url,
             "stage": "start",
         }
         log.info("report started", extra=log_ctx)
-
-        self._validate_focus_areas()
 
         if self.ctx.embedding_model is None:
             raise LLMNotConfigured("embedding model not configured")
@@ -102,58 +98,86 @@ class ReadinessReportService:
         if self.ctx.groq is None:
             raise LLMNotConfigured("GROQ_API_KEY not set")
 
-        flt = qmodels.Filter(must=[
-            qmodels.FieldCondition(
-                key="business_id",
-                match=qmodels.MatchValue(value=self.ctx.business_id),
-            )
-        ])
+        if not self.ctx.url:
+            raise InvalidRequest("A valid url must be provided to generate a report.")
 
         t = time.perf_counter()
-        try:
-            count_result = self.ctx.qdrant.count(
-                collection_name=COLLECTION_KB_MASTER,
-                count_filter=flt,
-            )
-        except Exception as exc:  # noqa: BLE001
-            raise VectorDBUnreachable(f"qdrant count failed: {exc}") from exc
-
-        total = getattr(count_result, "count", None) or 0
         
-        evidence_by_area: dict[str, list[str]] = {area: [] for area in (self.ctx.focus_areas or ALL_FOCUS_AREAS)}
-        sources_used = SourcesUsed(documents=0, pages=0)
+        # 1. Collection Layer
+        try:
+            evidence = await collect_evidence(self.ctx.url)
+        except ExtractionFailure as exc:
+            log.warning(f"Extraction failed: {exc}", extra=log_ctx)
+            # Produce a 0 score report gracefully
+            return self._empty_report(log_ctx, str(exc))
+        except Exception as exc:
+            log.error(f"Collection failed: {exc}", extra=log_ctx)
+            return self._empty_report(log_ctx, str(exc))
 
-        if total == 0:
-            log.info(
-                "business has no vectors, generating empty report",
-                extra={**log_ctx, "stage": "count", "count": 0,
-                       "duration_ms": int((time.perf_counter() - t) * 1000)},
-            )
-            # Do not throw BusinessNotFound. Let the LLM generate a 0/100 report 
-            # with empty evidence so the user understands they need to upload data.
-        else:
-            pairs = questions_for(self.ctx.focus_areas)
-            evidence_by_area, sources_used = self._gather_evidence(pairs, flt, log_ctx)
-
-        user_prompt = build_user_prompt(
-            evidence_by_area,
-            language=self.ctx.language,
-            business_id=self.ctx.business_id,
-        )
-        t = time.perf_counter()
+        # 2. Rule Engine
+        analyze_rules(evidence)
+        
+        # 3. AI Analysis
+        user_prompt = f"Analyze this content for clarity:\n\n{evidence.markdown[:10000]}"
+        t_llm = time.perf_counter()
         try:
             raw = self.ctx.groq.complete_json(SYSTEM_PROMPT, user_prompt)
         except GroqUnavailable as exc:
             raise UpstreamLLMFailed(str(exc)) from exc
-
+            
         log.info(
             "llm answered",
             extra={**log_ctx, "stage": "llm",
                    "prompt_chars": len(user_prompt),
-                   "duration_ms": int((time.perf_counter() - t) * 1000)},
+                   "duration_ms": int((time.perf_counter() - t_llm) * 1000)},
         )
+        
+        # 4. Weighted Scoring (75% Deterministic, 25% AI)
+        if isinstance(raw, dict):
+            who = _clamp_score(raw.get("who_score"), 5)
+            what = _clamp_score(raw.get("what_score"), 5)
+            where = _clamp_score(raw.get("where_score"), 5)
+            why = _clamp_score(raw.get("why_score"), 5)
+            overall = _clamp_score(raw.get("overall_clarity"), 5)
+            
+            ai_clarity_score = (who + what + where + why + overall) / 25.0 * 25.0
+            evidence.ai_score = ai_clarity_score
+            evidence.ai_clarity_scores = {
+                "who": who, "what": what, "where": where, "why": why, "overall": overall
+            }
+        else:
+            evidence.ai_score = 12.5 # default 50%
+            
+        evidence.final_score = evidence.deterministic_score + evidence.ai_score
+        
+        # 5. Recommendation Engine
+        recommendations = [
+            AutomationSuggestion(
+                title=r["title"],
+                description=r["fix"],
+                severity=r["severity"]
+            )
+            for r in getattr(evidence, "rule_recommendations", [])
+        ]
 
-        report = self._coerce_report(raw, sources_used)
+        report = ReadinessReport(
+            report_id=self.report_id,
+            business_id=self.ctx.business_id,
+            score=int(round(evidence.final_score)),
+            breakdown=Breakdown(
+                accessibility=int(round(evidence.accessibility.get("score", 0))),
+                structured_data=int(round(evidence.schema_analysis.get("score", 0))),
+                semantic_structure=int(round(evidence.semantic_structure.get("score", 0))),
+                content_clarity=int(round(evidence.ai_score)),
+            ),
+            confidence=evidence.extraction_confidence,
+            strengths=_clean_strings(raw.get("strengths") if isinstance(raw, dict) else []),
+            weaknesses=_clean_strings(raw.get("weaknesses") if isinstance(raw, dict) else []),
+            recommendations=recommendations,
+            created_at=datetime.now(timezone.utc),
+            llm_model=settings.groq_model,
+        )
+        
         self._persist(report, log_ctx)
 
         log.info(
@@ -167,110 +191,21 @@ class ReadinessReportService:
         )
         return report
 
-    def _validate_focus_areas(self) -> None:
-        if not self.ctx.focus_areas:
-            return
-        bad = [a for a in self.ctx.focus_areas if a not in ALL_FOCUS_AREAS]
-        if bad:
-            raise InvalidRequest(
-                f"unknown focus_areas: {bad}; allowed: {list(ALL_FOCUS_AREAS)}"
-            )
-
-    def _gather_evidence(
-        self,
-        pairs: list[tuple[str, str]],
-        flt: qmodels.Filter,
-        log_ctx: dict,
-    ) -> tuple[dict[str, list[str]], SourcesUsed]:
-        """Embed each question, search kb_master, group snippets by focus area."""
-        evidence: dict[str, list[str]] = {}
-        for area in (self.ctx.focus_areas or list(ALL_FOCUS_AREAS)):
-            evidence.setdefault(area, [])
-
-        website_sections = 0
-        document_chunks = 0
-        used_chars = 0
-
-        t = time.perf_counter()
-        for area, question in pairs:
-            if used_chars >= MAX_TOTAL_EVIDENCE_CHARS:
-                break
-            try:
-                vec = self.ctx.embedding_model.embed_query(question)
-                hits = self.ctx.qdrant.search(
-                    collection_name=COLLECTION_KB_MASTER,
-                    query_vector=vec,
-                    query_filter=flt,
-                    limit=EVIDENCE_PER_QUESTION,
-                    score_threshold=settings.chat_score_threshold,
-                    with_payload=True,
-                )
-            except Exception as exc:  # noqa: BLE001
-                raise VectorDBUnreachable(f"qdrant search failed: {exc}") from exc
-
-            for hit in hits:
-                payload = getattr(hit, "payload", {}) or {}
-                st = payload.get("source_type", "website")
-                if not self.ctx.include_documents and st == "document":
-                    continue
-                if st == "website":
-                    website_sections += 1
-                elif st == "document":
-                    document_chunks += 1
-                text = (payload.get("text") or "").strip()
-                if not text:
-                    continue
-                text = text[:EVIDENCE_SNIPPET_CHARS]
-                evidence.setdefault(area, []).append(text)
-                used_chars += len(text)
-                if used_chars >= MAX_TOTAL_EVIDENCE_CHARS:
-                    break
-
-        log.info(
-            "evidence gathered",
-            extra={
-                **log_ctx,
-                "stage": "evidence",
-                "questions": len(pairs),
-                "website_sections": website_sections,
-                "document_chunks": document_chunks,
-                "evidence_chars": used_chars,
-                "duration_ms": int((time.perf_counter() - t) * 1000),
-            },
-        )
-        return evidence, SourcesUsed(
-            website_sections=website_sections,
-            document_chunks=document_chunks,
-        )
-
-    def _coerce_report(self, raw: dict, sources_used: SourcesUsed) -> ReadinessReport:
-        if not isinstance(raw, dict):
-            raw = {}
-
-        sub_raw = raw.get("subscores") or {}
-        subscores = Subscores(
-            digital_presence=_clamp(sub_raw.get("digital_presence"), default=0),
-            data_maturity=_clamp(sub_raw.get("data_maturity"), default=0),
-            customer_support=_clamp(sub_raw.get("customer_support"), default=0),
-            automation=_clamp(sub_raw.get("automation"), default=0),
-            tooling=_clamp(sub_raw.get("tooling"), default=0),
-        )
-        score = _clamp(raw.get("score"), default=_average_subscores(subscores))
-
-        return ReadinessReport(
+    def _empty_report(self, log_ctx: dict, reason: str) -> ReadinessReport:
+        report = ReadinessReport(
             report_id=self.report_id,
             business_id=self.ctx.business_id,
-            score=score,
-            subscores=subscores,
-            strengths=_clean_strings(raw.get("strengths")),
-            weaknesses=_clean_strings(raw.get("weaknesses")),
-            opportunities=_clean_strings(raw.get("opportunities")),
-            automation_suggestions=_clean_automation(raw.get("automation_suggestions")),
-            roi_estimates=_clean_roi(raw.get("roi_estimates")),
-            sources_used=sources_used,
+            score=0,
+            breakdown=Breakdown(accessibility=0, structured_data=0, semantic_structure=0, content_clarity=0),
+            confidence=0,
+            strengths=[],
+            weaknesses=[reason],
+            recommendations=[],
             created_at=datetime.now(timezone.utc),
             llm_model=settings.groq_model,
         )
+        self._persist(report, log_ctx)
+        return report
 
     def _persist(self, report: ReadinessReport, log_ctx: dict) -> None:
         """Upsert a small vector snapshot of the report into readiness_reports.
@@ -302,8 +237,7 @@ class ReadinessReportService:
             "business_id": self.ctx.business_id,
             "report_id": report.report_id,
             "score": report.score,
-            "subscores": report.subscores.model_dump(),
-            "sources_used": report.sources_used.model_dump(),
+            "subscores": report.breakdown.model_dump(),
             "summary": summary,
             "created_at": report.created_at.isoformat(),
         }
@@ -335,9 +269,12 @@ def _clamp(value: Any, *, default: int) -> int:
     return max(0, min(100, n))
 
 
-def _average_subscores(s: Subscores) -> int:
-    vals = [s.digital_presence, s.data_maturity, s.customer_support, s.automation, s.tooling]
-    return int(round(sum(vals) / len(vals))) if vals else 0
+def _clamp_score(value: Any, max_val: int) -> int:
+    try:
+        n = int(round(float(value)))
+    except (TypeError, ValueError):
+        return 0
+    return max(0, min(max_val, n))
 
 
 def _clean_strings(value: Any) -> list[str]:
@@ -352,48 +289,4 @@ def _clean_strings(value: Any) -> list[str]:
     return out
 
 
-def _clean_automation(value: Any) -> list[AutomationSuggestion]:
-    if not isinstance(value, list):
-        return []
-    out: list[AutomationSuggestion] = []
-    for v in value:
-        if not isinstance(v, dict):
-            continue
-        title = str(v.get("title", "")).strip()
-        if not title:
-            continue
-        try:
-            hours = int(round(float(v.get("estimated_hours_saved_per_week", 0) or 0)))
-        except (TypeError, ValueError):
-            hours = 0
-        out.append(AutomationSuggestion(
-            title=title[:200],
-            description=str(v.get("description", "")).strip()[:400],
-            estimated_hours_saved_per_week=max(0, hours),
-        ))
-    return out
 
-
-def _clean_roi(value: Any) -> list[ROIEstimate]:
-    if not isinstance(value, list):
-        return []
-    out: list[ROIEstimate] = []
-    for v in value:
-        if not isinstance(v, dict):
-            continue
-        title = str(v.get("suggestion_title", "")).strip()
-        if not title:
-            continue
-        try:
-            usd = int(round(float(v.get("estimated_annual_savings_usd", 0) or 0)))
-        except (TypeError, ValueError):
-            usd = 0
-        conf = str(v.get("confidence", "medium")).lower()
-        if conf not in {"low", "medium", "high"}:
-            conf = "medium"
-        out.append(ROIEstimate(
-            suggestion_title=title[:200],
-            estimated_annual_savings_usd=max(0, usd),
-            confidence=conf,  # type: ignore[arg-type]
-        ))
-    return out

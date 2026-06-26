@@ -399,23 +399,14 @@ function WorkSection() {
     let cancelled = false
     ;(async () => {
       try {
-        const data = await api<{ businesses: Business[] }>('/api/business/mine')
+        const data = await api<{ businesses: (Business & { audits?: Audit[] })[] }>('/api/business/mine?includeLatestAudit=true')
         if (cancelled) return
         const list = data.businesses ?? []
         setBusinesses(list)
         const audits: Record<string, Audit | null> = {}
-        await Promise.all(
-          list.map(async (b) => {
-            try {
-              const r = await api<{ audit: Audit | null }>(
-                `/api/audit/business/${b.id}/latest`,
-              )
-              audits[b.id] = r.audit
-            } catch {
-              audits[b.id] = null
-            }
-          }),
-        )
+        list.forEach((b) => {
+          audits[b.id] = b.audits && b.audits.length > 0 ? b.audits[0] : null
+        })
         if (!cancelled) setLatest(audits)
       } catch (err) {
         if (!cancelled) {
@@ -430,9 +421,12 @@ function WorkSection() {
     }
   }, [])
 
-  const kpiReadiness = Object.values(latest).find((a) => a != null)
-    ? `${Object.values(latest).find((a) => a != null)!.readinessScore}/100`
-    : '—'
+  const validScores = Object.values(latest).filter((a) => a != null).map(a => a!.readinessScore)
+  const avgScore = validScores.length > 0 
+    ? Math.round(validScores.reduce((sum, score) => sum + score, 0) / validScores.length)
+    : null
+
+  const kpiReadiness = avgScore !== null ? `${avgScore}/100` : '—'
 
   return (
     <section id="work" className="border-t border-slate-200 bg-slate-50/50 scroll-mt-32">

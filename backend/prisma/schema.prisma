@@ -121,7 +121,7 @@ model Document {
   businessId     String
   business       Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
   knowledgeBaseId String?
-  knowledgeBase  KnowledgeBase? @relation(fields: [knowledgeBaseId], references: [id])
+  knowledgeBase  KnowledgeBase? @relation(fields: [knowledgeBaseId], references: [id], onDelete: SetNull)
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
   deletedAt      DateTime?
@@ -156,7 +156,7 @@ model WebsitePage {
   websiteId       String
   website         Website        @relation(fields: [websiteId], references: [id], onDelete: Cascade)
   knowledgeBaseId String?
-  knowledgeBase   KnowledgeBase? @relation(fields: [knowledgeBaseId], references: [id])
+  knowledgeBase   KnowledgeBase? @relation(fields: [knowledgeBaseId], references: [id], onDelete: SetNull)
   createdAt       DateTime       @default(now())
 
   @@index([websiteId])
@@ -363,7 +363,7 @@ model Job {
   updatedAt   DateTime  @updatedAt
 
   businessId  String?
-  business    Business? @relation(fields: [businessId], references: [id])
+  business    Business? @relation(fields: [businessId], references: [id], onDelete: Cascade)
 
   @@index([businessId])
   @@index([type])

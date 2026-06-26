@@ -9,6 +9,7 @@ import {
   MessageCreatedEvent,
 } from '../events/chat.event';
 import { chatListener } from '../listeners/chat.listener';
+import { analyticsService } from '../../analytics/services/analytics.service';
 import { v4 as uuidv4 } from 'uuid';
 import axios from 'axios';
 import { ChatSession, Message, Visitor } from '@prisma/client';
@@ -116,12 +117,23 @@ export class ChatService {
   async createMessage(
     chatSessionId: string,
     content: string,
-    isFromUser = true,
+    isFromUser: boolean,
     chatMode: 'text' | 'voice' = 'text',
+    includeLiveWeb: boolean = false,
   ): Promise<Message> {
     const session = await chatRepository.findById(chatSessionId);
     if (!session) {
       throw new Error('Chat session not found');
+    }
+
+    if (session.widgetId) {
+      const widget = await prisma.widget.findUnique({
+        where: { id: session.widgetId },
+        select: { isEnabled: true },
+      });
+      if (widget && !widget.isEnabled) {
+        throw new Error('This widget is currently disabled by the owner.');
+      }
     }
 
     const message = await chatRepository.createMessage({
@@ -130,8 +142,8 @@ export class ChatService {
       isFromUser,
     });
 
-    const messageCount = await chatRepository.getMessageCountByChatSessionId(chatSessionId);
-    await chatRepository.updateMessageCount(chatSessionId, messageCount);
+    const newCount = await chatRepository.getMessageCountByChatSessionId(chatSessionId);
+    await chatRepository.updateMessageCount(chatSessionId, newCount);
 
     const event = new MessageCreatedEvent(
       message.id,
@@ -141,16 +153,11 @@ export class ChatService {
     );
     await chatListener.onMessageCreated(event);
 
-    // Forward to AI service for bot responses. We run the proxy in
-    // the background so the HTTP response can return 201 the moment
-    // the user's message is persisted — otherwise the proxy blocks
-    // the caller for 20-35s while ai-service runs its full RAG +
-    // live-web pipeline, and the page shows a stale spinner. The
-    // frontend polls /api/chat/{sid}/messages to pick up the bot
+    // If the message is from the user, fire off a background task to get an AI
     // reply when it lands. Failures are logged, not surfaced.
     if (isFromUser) {
       setImmediate(() => {
-        this.proxyToAiService(chatSessionId, content, chatMode).catch((err) => {
+        this.proxyToAiService(chatSessionId, content, chatMode, includeLiveWeb).catch((err) => {
           logger.error(
             { err, chatSessionId },
             'background AI proxy crashed',
@@ -162,7 +169,12 @@ export class ChatService {
     return message;
   }
 
-  private async proxyToAiService(chatSessionId: string, content: string, chatMode: 'text' | 'voice' = 'text'): Promise<void> {
+  private async proxyToAiService(
+    chatSessionId: string, 
+    content: string, 
+    chatMode: 'text' | 'voice' = 'text',
+    includeLiveWeb: boolean = false,
+  ): Promise<void> {
     try {
       const session = await chatRepository.findById(chatSessionId);
       if (!session) {
@@ -222,7 +234,7 @@ export class ChatService {
           question: content,
           top_k: 6,
           score_threshold: 0.3,
-          include_live_web: true,
+          include_live_web: includeLiveWeb,
           company_name: companyName,
           company_url: companyUrl,
           recent_messages: recentMessages,
@@ -264,8 +276,18 @@ export class ChatService {
         });
         const newCount = await chatRepository.getMessageCountByChatSessionId(chatSessionId);
         await chatRepository.updateMessageCount(chatSessionId, newCount);
+
+        // Record failed response analytics
+        const failSession = await chatRepository.findById(chatSessionId);
+        if (failSession) {
+          await analyticsService.createAnalytics({
+            businessId: failSession.businessId,
+            metricType: 'FAILED_RESPONSES',
+            metricValue: 1,
+          });
+        }
       } catch (dbErr) {
-        logger.error({ dbErr }, 'Failed to save error message');
+        logger.error({ dbErr }, 'Failed to save error message or analytics');
       }
     }
   }

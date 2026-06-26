@@ -3,6 +3,7 @@
 import { use, useEffect, useState } from 'react'
 import { ArrowLeft, Send, Copy, Trash2, Check } from 'lucide-react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { api } from '@/lib/api'
@@ -13,6 +14,7 @@ interface ChatbotDetailPageProps {
 }
 
 export default function ChatbotDetailPage({ params }: ChatbotDetailPageProps) {
+  const router = useRouter()
   const { id: widgetId } = use(params)
   const [widget, setWidget] = useState<Widget | null>(null)
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -125,11 +127,18 @@ export default function ChatbotDetailPage({ params }: ChatbotDetailPageProps) {
     void sendMessage()
   }
 
+  const backendUrl = typeof window !== 'undefined' 
+    ? (process.env.NEXT_PUBLIC_BACKEND_URL || window.location.origin.replace('3001', '3000'))
+    : 'http://localhost:3000';
+
   const embedCode = `<!-- AIBridge Chatbot -->
 <div id="aibridge-chatbot"></div>
 <script src="${typeof window !== 'undefined' ? window.location.origin : ''}/chatbot-widget.js"></script>
 <script>
-  AIBridgeChatbot.init({ widgetId: '${widgetId}' });
+  AIBridgeChatbot.init({ 
+    widgetId: '${widgetId}',
+    apiUrl: '${backendUrl}'
+  });
 </script>`
 
   const copyEmbedCode = () => {
@@ -296,6 +305,23 @@ export default function ChatbotDetailPage({ params }: ChatbotDetailPageProps) {
             <div className="bg-card rounded-lg border border-border p-4">
               <h3 className="font-semibold mb-3">Actions</h3>
               <div className="space-y-2">
+                <Button
+                  variant="outline"
+                  onClick={async () => {
+                    try {
+                      await api(`/api/widget/${widgetId}`, {
+                        method: 'PUT',
+                        body: { isEnabled: !widget?.isEnabled }
+                      })
+                      setWidget(w => w ? { ...w, isEnabled: !w.isEnabled } : null)
+                    } catch (err) {
+                      console.error('Failed to toggle widget status', err)
+                    }
+                  }}
+                  className="w-full justify-start text-xs"
+                >
+                  {widget?.isEnabled ? 'Disable widget' : 'Enable widget'}
+                </Button>
                 <Button
                   variant="outline"
                   onClick={handleDeleteWidget}

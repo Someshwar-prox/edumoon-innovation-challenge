@@ -29,59 +29,10 @@ import { AuthCanvas } from '@/components/auth/auth-canvas'
 type Step = 1 | 2 | 3 | 4
 
 interface CrawlResult {
-  status: 'pending' | 'success' | 'failed'
+  status: 'idle' | 'pending' | 'success' | 'failed'
   pagesCrawled?: number
   error?: string
 }
-
-// Derive a sensible default business name from the auth'd user
-// cached in sessionStorage by lib/auth.ts. "somesh@bookzstore.in" →
-// "Bookzstore", "Jane Doe <jane@gmail.com>" → "Jane Doe" (fallback).
-// Avoids the placeholder "My Business" that the AI advisor otherwise
-// mishears as a real company name and answers generic questions about.
-function deriveBusinessNameFromEmail(): string {
-  if (typeof window === 'undefined') return 'My Business'
-  try {
-    const raw = window.sessionStorage.getItem('aibridge:user')
-    if (raw) {
-      const parsed = JSON.parse(raw) as {
-        email?: string
-        firstName?: string
-        lastName?: string
-      }
-      const fullName = [parsed?.firstName, parsed?.lastName]
-        .filter(Boolean)
-        .join(' ')
-        .trim()
-      if (fullName) return fullName
-      if (parsed?.email) {
-        const domain = parsed.email.split('@')[1] || ''
-        const root = domain.replace(/^www\./, '').split('.')[0]
-        if (
-          root &&
-          root !== 'gmail' &&
-          root !== 'yahoo' &&
-          root !== 'outlook' &&
-          root !== 'hotmail'
-        ) {
-          return root.charAt(0).toUpperCase() + root.slice(1)
-        }
-        const local = parsed.email.split('@')[0] || ''
-        const pretty = local
-          .split(/[._-]+/)
-          .filter(Boolean)
-          .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
-          .join(' ')
-        if (pretty) return pretty
-      }
-    }
-  } catch {
-    // sessionStorage can be unavailable in private mode
-  }
-  return 'My Business'
-}
-
-import { useOnboardingStore } from '@/components/dashboard/onboarding-provider'
 
 function CrawlingSimulation({ url, isComplete }: { url: string; isComplete: boolean }) {
   const [logs, setLogs] = useState<string[]>([])
@@ -232,6 +183,7 @@ export default function OnboardingPage() {
   const [chatLog, setChatLog] = useState<Array<{ role: 'user' | 'ai'; text: string }>>([])
   const [chatSending, setChatSending] = useState(false)
   const [sessionId, setSessionId] = useState<string | null>(null)
+  const [includeLiveWeb, setIncludeLiveWeb] = useState(false)
 
   const searchParams = useSearchParams()
   const urlBusinessId = searchParams.get('businessId')
@@ -418,7 +370,7 @@ export default function OnboardingPage() {
 
       await api(`/api/chat/${sid}/message`, {
         method: 'POST',
-        body: { content: text, isFromUser: true, chatMode: chatMode },
+        body: { content: text, isFromUser: true, chatMode: chatMode, includeLiveWeb: includeLiveWeb },
       })
       
       // 3) Poll for the bot's reply. Wait until DB has at least 2 new messages
@@ -456,12 +408,16 @@ export default function OnboardingPage() {
       if (aiText && chatMode === 'voice') {
         const cleanText = aiText.replace(/\s*\(\d+\)/g, '').replace(/\s*\[\d+\]/g, '').replace(/[*_#]/g, '');
         
+        let ttsVoice = 'en-IN-NeerjaNeural';
+        if (voiceLang === 'hi') ttsVoice = 'hi-IN-SwaraNeural';
+        if (voiceLang === 'te') ttsVoice = 'te-IN-ShrutiNeural';
+
         try {
           // Use standard fetch because api() wrapper expects JSON
           const res = await fetch(`/api/chat/tts`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: cleanText })
+            body: JSON.stringify({ text: cleanText, voice: ttsVoice })
           });
           
           if (!res.ok) throw new Error('TTS failed');
@@ -693,29 +649,55 @@ export default function OnboardingPage() {
             title={business.name}
             subtitle="Your chatbot is ready. Ask anything."
             right={
-              <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5">
-                <button
-                  type="button"
-                  onClick={() => setChatMode('text')}
-                  className={`inline-flex items-center gap-1.5 px-3 h-8 rounded-md text-xs font-medium ${
-                    chatMode === 'text'
-                      ? 'bg-indigo-600 text-white'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <Type className="w-3.5 h-3.5" /> Text
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setChatMode('voice')}
-                  className={`inline-flex items-center gap-1.5 px-3 h-8 rounded-md text-xs font-medium ${
-                    chatMode === 'voice'
-                      ? 'bg-indigo-600 text-white'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <Mic className="w-3.5 h-3.5" /> Voice
-                </button>
+              <div className="flex items-center gap-2">
+                <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setIncludeLiveWeb(false)}
+                    className={`inline-flex items-center gap-1.5 px-3 h-8 rounded-md text-xs font-medium ${
+                      !includeLiveWeb
+                        ? 'bg-emerald-600 text-white'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <MessageSquare className="w-3.5 h-3.5" /> Normal
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIncludeLiveWeb(true)}
+                    className={`inline-flex items-center gap-1.5 px-3 h-8 rounded-md text-xs font-medium ${
+                      includeLiveWeb
+                        ? 'bg-emerald-600 text-white'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <Globe className="w-3.5 h-3.5" /> Web Search
+                  </button>
+                </div>
+                <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setChatMode('text')}
+                    className={`inline-flex items-center gap-1.5 px-3 h-8 rounded-md text-xs font-medium ${
+                      chatMode === 'text'
+                        ? 'bg-indigo-600 text-white'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <Type className="w-3.5 h-3.5" /> Text
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setChatMode('voice')}
+                    className={`inline-flex items-center gap-1.5 px-3 h-8 rounded-md text-xs font-medium ${
+                      chatMode === 'voice'
+                        ? 'bg-indigo-600 text-white'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <Mic className="w-3.5 h-3.5" /> Voice
+                  </button>
+                </div>
               </div>
             }
           >
@@ -899,64 +881,74 @@ function TextChat({
 }
 
 function VoiceChat({ onTranscribe, disabled }: { onTranscribe: (text: string, lang: string) => void; disabled: boolean }) {
-  const [language, setLanguage] = useState<'en' | 'te' | 'hi'>('en')
+  const [language, setLanguage] = useState<'en-IN' | 'te-IN' | 'hi-IN'>('en-IN')
   const [recording, setRecording] = useState(false)
-  const [processing, setProcessing] = useState(false)
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
-  const chunksRef = useRef<BlobPart[]>([])
+  const recognitionRef = useRef<any>(null)
 
-  const toggleRecording = async () => {
+  useEffect(() => {
+    // Initialize Web Speech API
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      
+      recognition.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        if (transcript) {
+          // Use a generic 'en' mapping for the LLM to know the language mode
+          const baseLang = language.split('-')[0];
+          onTranscribe(transcript, baseLang);
+        }
+      };
+
+      recognition.onerror = (event: any) => {
+        console.error("Speech recognition error", event.error);
+        if (event.error !== 'no-speech') {
+          alert(`Microphone error: ${event.error}. Make sure microphone permissions are granted.`);
+        }
+        setRecording(false);
+      };
+
+      recognition.onend = () => {
+        setRecording(false);
+      };
+
+      recognitionRef.current = recognition;
+    }
+  }, [onTranscribe, language]);
+
+  // Update language when it changes
+  useEffect(() => {
+    if (recognitionRef.current) {
+      recognitionRef.current.lang = language;
+    }
+  }, [language]);
+
+  const toggleRecording = () => {
     if (recording) {
-      mediaRecorderRef.current?.stop()
-      setRecording(false)
-      return
+      recognitionRef.current?.stop();
+      setRecording(false);
+      return;
+    }
+
+    if (!recognitionRef.current) {
+      alert("Your browser does not support native speech recognition. Please use Google Chrome, Edge, or Safari.");
+      return;
     }
 
     try {
-      // INTERRUPT: Stop any currently playing AI audio the instant the user clicks microphone
+      // Stop any currently playing AI audio
       if ((window as any)._currentAudio) {
         (window as any)._currentAudio.pause();
       }
       
-      const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4'
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      const recorder = new MediaRecorder(stream, { mimeType })
-      mediaRecorderRef.current = recorder
-      chunksRef.current = []
-
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunksRef.current.push(e.data)
-      }
-
-      recorder.onstop = async () => {
-        const blob = new Blob(chunksRef.current, { type: mimeType })
-        stream.getTracks().forEach(t => t.stop())
-        
-        setProcessing(true)
-        try {
-          const ext = mimeType.includes('webm') ? 'webm' : 'mp4'
-          const fd = new FormData()
-          fd.append('file', blob, `audio.${ext}`)
-          fd.append('language', language)
-
-          const res = await api<{text: string}>('/api/chat/voice-transcribe', {
-            method: 'POST',
-            body: fd
-          })
-          if (res.text) onTranscribe(res.text, language)
-        } catch (err: any) {
-          console.error("Transcription failed", err)
-          alert(err.message || "Failed to transcribe audio. Please try again.")
-        } finally {
-          setProcessing(false)
-        }
-      }
-
-      recorder.start(200)
-      setRecording(true)
+      recognitionRef.current.start();
+      setRecording(true);
     } catch (err) {
-      console.error('Could not access microphone', err)
-      alert('Could not access microphone')
+      console.error('Could not start recognition', err);
+      // Fallback if it's already started
+      setRecording(false);
     }
   }
 
@@ -964,52 +956,47 @@ function VoiceChat({ onTranscribe, disabled }: { onTranscribe: (text: string, la
     <div className="space-y-6 py-4">
       <div className="flex justify-center">
         <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5">
-          {(['en', 'te', 'hi'] as const).map((code) => (
+          {[
+            { code: 'en-IN', label: 'English / Tinglish' },
+            { code: 'te-IN', label: 'తెలుగు' },
+            { code: 'hi-IN', label: 'हिंदी' }
+          ].map((lang) => (
             <button
-              key={code}
+              key={lang.code}
               type="button"
-              onClick={() => setLanguage(code)}
-              disabled={recording || disabled || processing}
+              onClick={() => setLanguage(lang.code as any)}
+              disabled={recording || disabled}
               className={`px-3 h-8 rounded-md text-xs font-medium disabled:opacity-50 ${
-                language === code
+                language === lang.code
                   ? 'bg-indigo-600 text-white'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              {code === 'en' ? 'English' : code === 'te' ? 'తెలుగు' : 'हिंदी'}
+              {lang.label}
             </button>
           ))}
         </div>
       </div>
 
       <div className="grid place-items-center h-32">
-        {processing ? (
-          <div className="flex flex-col items-center gap-3">
-            <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
-            <p className="text-sm text-slate-500">Transcribing...</p>
-          </div>
-        ) : (
-          <button
-            type="button"
-            onClick={toggleRecording}
-            disabled={disabled}
-            className={`w-24 h-24 rounded-full grid place-items-center text-white shadow-xl transition-all ${
-              recording 
-                ? 'bg-rose-500 animate-pulse scale-110 shadow-rose-200' 
-                : 'bg-gradient-to-br from-indigo-500 to-violet-600 shadow-indigo-200 hover:scale-105 disabled:opacity-50 disabled:hover:scale-100'
-            }`}
-            aria-label="Tap to talk"
-          >
-            <Mic className={`w-10 h-10 ${recording ? 'animate-bounce' : ''}`} />
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={toggleRecording}
+          disabled={disabled}
+          className={`w-24 h-24 rounded-full grid place-items-center text-white shadow-xl transition-all ${
+            recording 
+              ? 'bg-rose-500 animate-pulse scale-110 shadow-rose-200' 
+              : 'bg-gradient-to-br from-indigo-500 to-violet-600 shadow-indigo-200 hover:scale-105 disabled:opacity-50 disabled:hover:scale-100'
+          }`}
+          aria-label="Tap to talk"
+        >
+          <Mic className={`w-10 h-10 ${recording ? 'animate-bounce' : ''}`} />
+        </button>
       </div>
       
-      {!processing && (
-        <p className="text-center text-sm text-slate-600 mt-4 h-6">
-          {recording ? 'Recording... tap again to send' : `Tap to talk in ${language === 'en' ? 'English' : language === 'te' ? 'Telugu' : 'Hindi'}`}
-        </p>
-      )}
+      <p className="text-center text-sm text-slate-600 mt-4 h-6">
+        {recording ? 'Recording... tap again to send' : `Tap to talk in ${language === 'en-IN' ? 'English' : language === 'te-IN' ? 'Telugu' : 'Hindi'}`}
+      </p>
     </div>
   )
 }

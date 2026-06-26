@@ -130,6 +130,17 @@ export class AnalyticsController {
     }
   }
 
+  // GET /api/analytics/:businessId/kpis
+  async getKpis(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { businessId } = req.params;
+      const kpis = await analyticsService.getKpis(businessId);
+      return res.status(200).json(kpis);
+    } catch (error) {
+      return next(error);
+    }
+  }
+
   // Sanity probe (kept from original 'getAll' stub)
   async getAll(_req: Request, res: Response) {
     return res.json({ message: 'analytics works' });

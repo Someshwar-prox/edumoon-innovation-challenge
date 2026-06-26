@@ -164,63 +164,74 @@ export default function PublicWidgetPage({ params }: PageProps) {
               own materials.
             </p>
           </header>
-
-          <div className="h-[420px] overflow-y-auto p-6 space-y-4 bg-slate-50/40">
-            {messages.length === 0 ? (
-              <p className="text-sm text-slate-500 text-center mt-24">
-                Start a conversation.
-              </p>
-            ) : (
-              messages.map((m) => (
-                <div
-                  key={m.id}
-                  className={`flex ${m.isFromUser ? 'justify-end' : 'justify-start'}`}
-                >
-                  <div
-                    className={`max-w-[80%] rounded-2xl px-4 py-2 text-sm whitespace-pre-wrap ${
-                      m.isFromUser
-                        ? 'bg-indigo-600 text-white rounded-br-none'
-                        : 'bg-white border border-slate-200 text-slate-800 rounded-bl-none'
-                    }`}
-                  >
-                    {m.content}
+          {widget.isEnabled ? (
+            <>
+              <div className="h-[420px] overflow-y-auto p-6 space-y-4 bg-slate-50/40">
+                {messages.length === 0 ? (
+                  <p className="text-sm text-slate-500 text-center mt-24">
+                    Send a message to start chatting with {widget.title}.
+                  </p>
+                ) : (
+                  messages.map((m) => (
+                    <div
+                      key={m.id}
+                      className={`flex ${m.isFromUser ? 'justify-end' : 'justify-start'}`}
+                    >
+                      <div
+                        className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-[15px] shadow-sm ${
+                          m.isFromUser
+                            ? 'bg-indigo-600 text-white rounded-br-none'
+                            : 'bg-white border border-slate-100 text-slate-900 rounded-bl-none'
+                        }`}
+                      >
+                        {m.content}
+                      </div>
+                    </div>
+                  ))
+                )}
+                {sending && (
+                  <div className="flex justify-start">
+                    <div className="bg-white border border-slate-100 px-4 py-2.5 rounded-2xl rounded-bl-none shadow-sm flex items-center gap-1.5 h-[44px]">
+                      <span className="w-1.5 h-1.5 rounded-full bg-slate-300 animate-bounce" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-slate-300 animate-bounce [animation-delay:0.2s]" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-slate-300 animate-bounce [animation-delay:0.4s]" />
+                    </div>
                   </div>
-                </div>
-              ))
-            )}
-            {sending && (
-              <div className="flex justify-start">
-                <div className="bg-white border border-slate-200 px-4 py-2 rounded-2xl rounded-bl-none text-slate-400 text-sm">
-                  Thinking…
-                </div>
+                )}
               </div>
-            )}
-          </div>
 
-          <form
-            onSubmit={(e) => {
-              e.preventDefault()
-              void sendMessage()
-            }}
-            className="border-t border-slate-100 p-4 flex gap-2"
-          >
-            <input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Type your question…"
-              disabled={sending}
-              className="flex-1 h-11 px-4 rounded-lg border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400"
-            />
-            <button
-              type="submit"
-              disabled={sending || !input.trim()}
-              className="inline-flex items-center gap-2 h-11 px-5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium disabled:opacity-50"
-            >
-              <Send className="w-4 h-4" /> Send
-            </button>
-          </form>
-          {error && (
-            <p className="px-4 pb-3 text-xs text-red-600">{error}</p>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  void sendMessage()
+                }}
+                className="border-t border-slate-100 p-4 flex gap-2"
+              >
+                <input
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  placeholder="Type your question…"
+                  disabled={sending}
+                  className="flex-1 h-11 px-4 rounded-lg border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400"
+                />
+                <button
+                  type="submit"
+                  disabled={sending || !input.trim()}
+                  className="inline-flex items-center gap-2 h-11 px-5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium disabled:opacity-50"
+                >
+                  <Send className="w-4 h-4" /> Send
+                </button>
+              </form>
+              {error && (
+                <p className="px-4 pb-3 text-xs text-red-600">{error}</p>
+              )}
+            </>
+          ) : (
+            <div className="h-[420px] flex items-center justify-center p-6 bg-slate-50/40">
+              <p className="text-sm text-slate-500 text-center">
+                This widget is currently disabled by the owner.
+              </p>
+            </div>
           )}
           {sessionId ? null : null}
         </div>

@@ -51,10 +51,17 @@ app.use(helmet({
 }));
 
 // CORS middleware
-app.use(cors({
-  origin: config.corsOrigin,
-  credentials: true
-}));
+app.use((req, res, next) => {
+  const isWidgetRoute = req.path.startsWith('/api/chat') && 
+    !req.path.includes('/business') && 
+    !req.path.includes('/active-sessions');
+  
+  if (isWidgetRoute) {
+    cors({ origin: true, credentials: true })(req, res, next);
+  } else {
+    cors({ origin: config.corsOrigin, credentials: true })(req, res, next);
+  }
+});
 
 // Compression middleware
 app.use(compression());

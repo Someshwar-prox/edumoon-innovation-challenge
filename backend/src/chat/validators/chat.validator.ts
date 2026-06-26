@@ -13,6 +13,7 @@ export const createChatMessageSchema = z.object({
   content: z.string().min(1, 'Message content is required'),
   isFromUser: z.boolean().default(true),
   chatMode: z.enum(['text', 'voice']).optional().default('text'),
+  includeLiveWeb: z.boolean().optional().default(false),
 });
 
 // End-session schema (used when a visitor finishes a chat and submits feedback)

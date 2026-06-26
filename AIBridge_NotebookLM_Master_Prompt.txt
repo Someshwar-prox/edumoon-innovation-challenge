@@ -1,0 +1,42 @@
+# AIBridge Pitch deck---
+
+### **System Role & Objective**
+Act as an expert Venture Capital pitch deck copywriter and startup advisor. Your goal is to write a highly compelling, concise, and professional pitch deck outline and script for a Pre-Seed B2B SaaS startup named **AIBridge**. The target audience is regional angel investors and startup incubators (specifically a-Hub). Tone should be confident, data-driven, and visionary.
+
+### **Context: What is AIBridge?**
+AIBridge is an automated AI onboarding and data ingestion platform designed specifically for Small and Medium-sized Businesses (SMBs) and MSMEs. 
+- **The Problem:** 93% of MSMEs are excluded from the AI revolution due to a lack of engineering talent, locked operational data (PDFs, FAQs), and extreme implementation costs charged by agencies.
+- **The Solution:** A 2-minute automated deployment platform. SMBs simply sign up, input their website URL or upload their PDFs, and AIBridge automatically chunks, vectorizes, and catalogs the data. It then provides an "AI Readiness Audit" and generates a secure, context-trained AI Chat Widget that embeds onto their website with one click.
+- **The Technology:** AIBridge is fully built and production-ready. 
+  - **Frontend:** Next.js, TypeScript, TailwindCSS (clean, modern dashboard).
+  - **Backend:** Node.js, Express, Prisma, PostgreSQL (handling JWT auth, tiered subscriptions, and document management).
+  - **AI Engine:** Python, FastAPI, Qdrant (Vector Database), Groq (LLM inference), and Edge TTS for voice. It features autonomous background web scraping to prevent database drift.
+- **The Market:** 180K+ MSMEs targeted, specifically capitalizing on the 79% startup sector growth in Visakhapatnam (Vizag) and the Andhra Pradesh government's digital maturity mandate.
+- **The Business Model:** Predictable tiered SaaS subscriptions. Starter Tier (₹2,500/month for 1 widget and weekly syncs) and Growth Tier (₹7,500/month for unlimited widgets, CRM syncing, and advanced analytics).
+- **The Ask:** Raising ₹1.75 Lakhs (Pre-seed grant) to achieve regional product-market validation. Breakdown: 43% Cloud/LLM APIs, 43% Vizag SME Onboarding Campaigns (Goal: First 50 paying customers), 14% Company Compliance.
+
+### **Required Slide Structure (Please generate the Headline, Bullet Points, and Speaker Notes for each)**
+
+1. **Title Slide:** AIBridge - The automated AI onboarding platform for SMBs.
+2. **The Problem (The Non-Technical AI Adoption Gap):** Engineering shortage, locked data, high costs.
+3. **The Solution (2-Minute Automated Deployment):** Ingestion -> Processing -> Readiness Audit -> Generation.
+4. **Product Magic (Dynamic System Capabilities):** Auto-synchronization, analytical audit logs, frictionless acquisition via the free Readiness Score hook.
+5. **Market Opportunity:** 180K MSMEs, Vizag's 79% growth, AP digital mandate.
+6. **Why We Win (Competitive Advantage):** Compare against generic AI tools. Focus on local support, zero-code requirement, and localized pricing.
+7. **Business Model:** ₹2,500 Starter vs ₹7,500 Growth tiers.
+8. **Product Roadmap (Future Scope):** WhatsApp integrations, Voice AI, etc. (Keep it product-focused).
+9. **The Team (Faces Behind the Mission):** Highlight AURA 2K26 Award winners, full-stack capability from UI/UX to Vector DB architecture.
+10. **The Ask & Milestones:** ₹1.75L ask. Where the money goes and what metrics it will unlock.
+
+### **Image / Screenshot Guidelines**
+The user will upload 6 specific images alongside this prompt. When generating the slide content, explicitly state where these images should be placed on the slides using a placeholder like `[Insert Image: <name>]`:
+- `[Insert Image: Logo]` -> Place on Slide 1 and optionally the footer of all slides.
+- `[Insert Image: AI Readiness Report Score]` -> Place on Slide 4 (Product Magic / Frictionless Acquisition) to show the automated lead magnet.
+- `[Insert Image: Knowledge Base Processed Files]` -> Place on Slide 3 (The Solution) next to the "Ingestion" talking point.
+- `[Insert Image: Chatbot Settings Embed Code]` -> Place on Slide 3 (The Solution) next to the "Generation / 2-Minute Deployment" talking point.
+- `[Insert Image: Live Chat Widget Answering Question]` -> Place on Slide 6 (Why We Win) to prove the tech is production-ready.
+- `[Insert Image: Main Dashboard Analytics]` -> Place on Slide 4 (Product Magic / Analytical Audit logs).
+- `[Insert Image: AURA 2K26 Award Team Photo]` -> Place on Slide 9 (The Team).
+
+---
+**End of Prompt**
