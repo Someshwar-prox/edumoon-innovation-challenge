@@ -971,8 +971,8 @@ function VoiceChat({ onTranscribe, disabled }: { onTranscribe: (text: string, la
         <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5">
           {[
             { code: 'en-IN', label: 'English' },
-            { code: 'te-IN', label: 'Telugu (Tinglish)' },
-            { code: 'hi-IN', label: 'Hindi (Hinglish)' }
+            { code: 'te-IN', label: 'Telugu' },
+            { code: 'hi-IN', label: 'Hindi' }
           ].map((lang) => (
             <button
               key={lang.code}
@@ -1015,8 +1015,8 @@ function VoiceChat({ onTranscribe, disabled }: { onTranscribe: (text: string, la
         {isTranscribing 
           ? 'Transcribing...' 
           : recording 
-            ? 'Recording... tap again to send' 
-            : `Tap to talk in ${language === 'en-IN' ? 'English' : language === 'te-IN' ? 'Telugu (Tinglish)' : 'Hindi (Hinglish)'}`}
+            ? 'Recording... tap again to send'
+            : `Tap to talk in ${language === 'en-IN' ? 'English' : language === 'te-IN' ? 'Telugu' : 'Hindi'}`}
       </p>
     </div>
   )
