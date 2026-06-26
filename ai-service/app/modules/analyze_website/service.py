@@ -185,7 +185,19 @@ class WebsiteAnalysisService:
                 domain = urlparse(self.ctx.url).netloc
                 query = f"{domain} about company"
                 ddg = DuckDuckGoBackend()
-                hits = asyncio.run(ddg.search(query, limit=5))
+                
+                # Run the async DuckDuckGo search in a new thread with its own event loop
+                # because we might be in a running event loop right now.
+                def _run_search():
+                    loop = asyncio.new_event_loop()
+                    try:
+                        return loop.run_until_complete(ddg.search(query, limit=5))
+                    finally:
+                        loop.close()
+                import threading
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                    hits = executor.submit(_run_search).result()
                 
                 if hits:
                     combined_text = "\n\n".join(f"Title: {h.title}\nURL: {h.url}\nSummary: {h.snippet}" for h in hits)
@@ -204,6 +216,9 @@ class WebsiteAnalysisService:
             log.warning("no pages crawled, returning empty profile", extra=log_ctx)
             from urllib.parse import urlparse
             return WebsiteAnalysisResult(
+                analysis_id=self.analysis_id,
+                business_id=self.ctx.business_id,
+                url=self.ctx.url,
                 profile=WebsiteProfile(
                     name=urlparse(self.ctx.url).netloc,
                     summary="Could not fetch website content.",
@@ -211,7 +226,10 @@ class WebsiteAnalysisService:
                 ),
                 pages_crawled=0,
                 sections_indexed=0,
+                crawled_urls=[],
                 warnings=[CrawlWarning(**w) for w in raw_warnings],
+                created_at=datetime.now(timezone.utc),
+                llm_model=settings.groq_model if self.ctx.groq else None,
             )
 
         warnings: list[CrawlWarning] = [CrawlWarning(**w) for w in raw_warnings]
