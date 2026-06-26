@@ -2,7 +2,7 @@
 
 AIBridge is an end-to-end conversational AI infrastructure designed to seamlessly integrate intelligent, voice-capable chatbots into any business website. By leveraging advanced Retrieval-Augmented Generation (RAG) and multilingual voice synthesis, AIBridge enables organizations to instantly deploy highly contextual and responsive AI agents trained on their specific knowledge bases.
 
-<video src="demo.mp4" autoplay loop muted playsinline width="100%"></video>
+<video src="https://github.com/Someshwar-prox/edumoon-innovation-challenge/raw/main/demo.mp4" controls="controls" muted="muted" width="100%"></video>
 
 ## About
 
