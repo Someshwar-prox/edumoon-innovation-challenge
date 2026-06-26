@@ -332,6 +332,18 @@ export default function OnboardingPage() {
   async function handleSend(explicitText?: string, voiceLang?: string) {
     const text = explicitText ?? chatInput.trim()
     if (!text || chatSending || !business) return
+
+    // Auto-calculate web search requirement
+    const q = text.toLowerCase()
+    let autoWebSearch = false
+    if (q.length >= 15) {
+      const smallTalk = ["hi", "hello", "hey", "who are you", "what are you", "what can you do", "help", "thanks", "thank you", "bye", "goodbye"]
+      if (!(smallTalk.some(x => q.startsWith(x)) && q.length < 40)) {
+        autoWebSearch = true
+      }
+    }
+    setIncludeLiveWeb(autoWebSearch)
+
     if (!explicitText) setChatInput('')
     setChatLog((l) => [...l, { role: 'user', text }])
     setChatSending(true)
@@ -651,28 +663,24 @@ export default function OnboardingPage() {
             right={
               <div className="flex items-center gap-2">
                 <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5">
-                  <button
-                    type="button"
-                    onClick={() => setIncludeLiveWeb(false)}
-                    className={`inline-flex items-center gap-1.5 px-3 h-8 rounded-md text-xs font-medium ${
+                  <div
+                    className={`inline-flex items-center gap-1.5 px-3 h-8 rounded-md text-xs font-medium transition-colors ${
                       !includeLiveWeb
                         ? 'bg-emerald-600 text-white'
-                        : 'text-slate-600 hover:text-slate-900'
+                        : 'text-slate-500'
                     }`}
                   >
                     <MessageSquare className="w-3.5 h-3.5" /> Normal
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setIncludeLiveWeb(true)}
-                    className={`inline-flex items-center gap-1.5 px-3 h-8 rounded-md text-xs font-medium ${
+                  </div>
+                  <div
+                    className={`inline-flex items-center gap-1.5 px-3 h-8 rounded-md text-xs font-medium transition-colors ${
                       includeLiveWeb
-                        ? 'bg-emerald-600 text-white'
-                        : 'text-slate-600 hover:text-slate-900'
+                        ? 'bg-emerald-600 text-white shadow-sm'
+                        : 'text-slate-500'
                     }`}
                   >
                     <Globe className="w-3.5 h-3.5" /> Web Search
-                  </button>
+                  </div>
                 </div>
                 <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5">
                   <button
@@ -962,9 +970,9 @@ function VoiceChat({ onTranscribe, disabled }: { onTranscribe: (text: string, la
       <div className="flex justify-center">
         <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5">
           {[
-            { code: 'en-IN', label: 'English / Tinglish' },
-            { code: 'te-IN', label: 'తెలుగు' },
-            { code: 'hi-IN', label: 'हिंदी' }
+            { code: 'en-IN', label: 'English' },
+            { code: 'te-IN', label: 'Telugu (Tinglish)' },
+            { code: 'hi-IN', label: 'Hindi (Hinglish)' }
           ].map((lang) => (
             <button
               key={lang.code}
@@ -1008,7 +1016,7 @@ function VoiceChat({ onTranscribe, disabled }: { onTranscribe: (text: string, la
           ? 'Transcribing...' 
           : recording 
             ? 'Recording... tap again to send' 
-            : `Tap to talk in ${language === 'en-IN' ? 'English' : language === 'te-IN' ? 'Telugu' : 'Hindi'}`}
+            : `Tap to talk in ${language === 'en-IN' ? 'English' : language === 'te-IN' ? 'Telugu (Tinglish)' : 'Hindi (Hinglish)'}`}
       </p>
     </div>
   )
